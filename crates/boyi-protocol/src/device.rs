@@ -161,17 +161,28 @@ impl Keyboard {
     }
 
     /// Replaces the base layer. Each packet is acknowledged with status `0`.
+    ///
+    /// Packets go out one at a time, each waiting for its acknowledgement, so
+    /// a reply always belongs to the last packet sent. A failure part-way
+    /// leaves the earlier packets applied; the keyboard cannot roll back.
     pub fn write_keymap(&self, map: &Keymap) -> Result<()> {
         for frame in keymap::write_frames(map)? {
-            let reply = self.request(&frame, 0)?;
-            if reply.0[6] != 0 {
-                return Err(Error::BadReply {
-                    cmd: keymap::CMD,
-                    reason: "keyboard rejected a keymap packet",
-                });
-            }
+            check_write_ack(&self.request(&frame, 0)?)?;
         }
         Ok(())
+    }
+}
+
+/// Keymap and advanced-key writes are acknowledged with an echo of the
+/// command, a declared payload length of 0 and status `0` in byte 6. The
+/// packet index is not echoed.
+fn check_write_ack(reply: &Frame) -> Result<()> {
+    match reply.0[6] {
+        0 => Ok(()),
+        _ => Err(Error::BadReply {
+            cmd: reply.cmd(),
+            reason: "keyboard rejected a keymap packet",
+        }),
     }
 }
 
@@ -192,5 +203,33 @@ fn drain(file: &mut File) -> Result<()> {
             Err(e) if e.kind() == ErrorKind::WouldBlock => return Ok(()),
             Err(e) => return Err(e.into()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn raw(head: &[u8]) -> [u8; frame::LEN] {
+        let mut b = [0u8; frame::LEN];
+        b[..head.len()].copy_from_slice(head);
+        b
+    }
+
+    #[test]
+    fn accepts_the_captured_acknowledgements() {
+        for cmd in [keymap::CMD, crate::advanced::CMD] {
+            let reply = Frame::parse_reply(&raw(&[0x01, cmd, 0, 0, 0, 0]), cmd, 0).unwrap();
+            assert!(check_write_ack(&reply).is_ok());
+        }
+    }
+
+    #[test]
+    fn rejects_bad_acknowledgements() {
+        let nonzero_status =
+            Frame::parse_reply(&raw(&[0x01, 0x18, 0, 0, 0, 0, 0x01]), 0x18, 0).unwrap();
+        assert!(check_write_ack(&nonzero_status).is_err());
+        // A reply to another command never reaches the status check.
+        assert!(Frame::parse_reply(&raw(&[0x01, 0x07, 0, 0, 0, 0]), 0x18, 0).is_err());
     }
 }

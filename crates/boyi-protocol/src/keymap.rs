@@ -218,24 +218,38 @@ impl Keymap {
         Self(slots)
     }
 
+    /// The action at `pos`, or `None` outside the matrix.
     pub fn get(&self, pos: KeyPos) -> Option<KeyAction> {
-        self.0.get(pos.index()).copied()
+        pos.in_matrix().then(|| self.0[pos.index()])
     }
 
     pub fn set(&mut self, pos: KeyPos, action: KeyAction) -> Result<()> {
-        let slot = self
-            .0
-            .get_mut(pos.index())
-            .ok_or(Error::OutOfRange("key position"))?;
-        *slot = action;
+        if !pos.in_matrix() {
+            return Err(Error::OutOfRange("key position"));
+        }
+        self.0[pos.index()] = action;
         Ok(())
     }
 
-    /// Fails if no slot keeps the Fn key, which would lock the user out of
-    /// Fn shortcuts until the next write.
+    /// Checks everything [`Keyboard::write_keymap`](crate::Keyboard::write_keymap)
+    /// would reject, without touching the device.
+    pub fn validate(&self) -> Result<()> {
+        write_frames(self).map(drop)
+    }
+
+    /// Structural rules: exactly one Fn, and only physical keys assigned. A
+    /// missing Fn would lock the user out of Fn shortcuts until the next write.
     fn check(&self) -> Result<()> {
-        if !self.0.contains(&KeyAction::Fn) {
-            return Err(Error::OutOfRange("keymap must keep an Fn key"));
+        let mut fn_keys = 0;
+        for (index, action) in self.0.iter().enumerate() {
+            let physical = KEYS.iter().any(|k| k.pos.index() == index);
+            if !physical && *action != KeyAction::Disabled {
+                return Err(Error::OutOfRange("only physical keys can be assigned"));
+            }
+            fn_keys += usize::from(*action == KeyAction::Fn);
+        }
+        if fn_keys != 1 {
+            return Err(Error::OutOfRange("keymap must have exactly one Fn key"));
         }
         Ok(())
     }
@@ -248,7 +262,9 @@ impl TryFrom<Vec<KeyAction>> for Keymap {
         if slots.len() != SLOTS {
             return Err(format!("keymap needs {SLOTS} slots, got {}", slots.len()));
         }
-        Ok(Self(slots))
+        let map = Self(slots);
+        map.validate().map_err(|e| e.to_string())?;
+        Ok(map)
     }
 }
 
@@ -437,6 +453,62 @@ mod tests {
         }));
         assert!(bad(KeyAction::Key { usage: 0 }));
         assert!(Keymap::try_from(vec![KeyAction::Disabled; 10]).is_err());
+    }
+
+    #[test]
+    fn requires_exactly_one_fn_on_a_physical_key() {
+        let mut two_fn = Keymap::factory();
+        two_fn.set(CAPS, KeyAction::Fn).unwrap();
+        assert!(two_fn.validate().is_err());
+
+        let mut moved = Keymap::factory();
+        moved
+            .set(KeyPos { row: 5, col: 12 }, KeyAction::Disabled)
+            .unwrap();
+        moved.set(CAPS, KeyAction::Fn).unwrap();
+        assert!(moved.validate().is_ok());
+
+        // (0, 0) has no physical key.
+        let mut ghost = Keymap::factory();
+        ghost
+            .set(KeyPos { row: 5, col: 12 }, KeyAction::Disabled)
+            .unwrap();
+        ghost.set(KeyPos { row: 0, col: 0 }, KeyAction::Fn).unwrap();
+        assert!(ghost.validate().is_err());
+        let mut ghost_key = Keymap::factory();
+        ghost_key
+            .set(KeyPos { row: 0, col: 0 }, KeyAction::Key { usage: 4 })
+            .unwrap();
+        assert!(ghost_key.validate().is_err());
+    }
+
+    #[test]
+    fn positions_outside_the_matrix_do_not_alias() {
+        let mut map = Keymap::factory();
+        let past_row_end = KeyPos { row: 1, col: 22 };
+        assert_eq!(map.get(past_row_end), None);
+        assert!(map.set(past_row_end, KeyAction::Disabled).is_err());
+        assert_eq!(
+            map.get(KeyPos { row: 2, col: 0 }),
+            Some(KeyAction::Key { usage: 0x2b })
+        );
+        assert!(map
+            .set(KeyPos { row: 6, col: 0 }, KeyAction::Disabled)
+            .is_err());
+    }
+
+    #[test]
+    fn deserializing_validates_the_map() {
+        let mut no_fn: Vec<KeyAction> = Keymap::factory().into();
+        no_fn[KeyPos { row: 5, col: 12 }.index()] = KeyAction::Disabled;
+        let json = serde_json::to_string(&no_fn).unwrap();
+        assert!(serde_json::from_str::<Keymap>(&json).is_err());
+        let bad_usage = serde_json::to_string(&Keymap::factory()).unwrap().replacen(
+            r#""usage":41"#,
+            r#""usage":0"#,
+            1,
+        );
+        assert!(serde_json::from_str::<Keymap>(&bad_usage).is_err());
     }
 
     #[test]

@@ -18,7 +18,11 @@ pub struct KeyPos {
 }
 
 impl KeyPos {
-    /// Position in row-major slot lists.
+    pub fn in_matrix(self) -> bool {
+        self.row < ROWS && self.col < COLS
+    }
+
+    /// Position in row-major slot lists. Only meaningful when [`Self::in_matrix`].
     pub fn index(self) -> usize {
         self.row as usize * COLS as usize + self.col as usize
     }

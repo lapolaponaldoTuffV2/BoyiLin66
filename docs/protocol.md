@@ -123,16 +123,18 @@ select effect 10 (Custom) with `0x07`.
 
 Writes one whole layer: 132 slots × 4 bytes, 14 slots per packet, 10 packets
 (the last carries 6 slots). Byte 2 = layer (`0` = base), byte 4 = packet
-index. Each packet is acknowledged with a reply whose payload starts `00`.
-There is no way to read a layer back.
+index. Each packet is acknowledged with a reply that echoes the command,
+declares length 0 and carries status `00` in byte 6; the packet index is not
+echoed, so send one packet at a time. There is no way to read a layer back,
+and a write that fails part-way leaves the earlier packets applied.
 
 | Bytes | Action |
 |---|---|
 | `00 00 00 00` | Disabled |
 | `00 usage 00 00` | HID keyboard usage (modifiers `E0`–`E7` included) |
 | `01 00 00 00` | Fn |
-| `13 mod usage 00` · `13 mod1 mod2 usage` | Shortcut; modifiers as HID usages, **unconfirmed** |
-| `07 code 00 00` | Media key, **unconfirmed** (codes in `keymap.rs`) |
+| `13 mod usage 00` · `13 mod1 mod2 usage` | Shortcut; modifiers as HID usages (two-modifier form **unconfirmed**) |
+| `07 code 00 00` | Media key (codes in `keymap.rs`; Mute `12` confirmed) |
 | `12 00 buttons 00` · `12 01 step 00` | Mouse button mask / wheel step, **unconfirmed** |
 | `17 slot 00 00` | Advanced key stored in slot `slot` (see `0x22`) |
 
