@@ -25,11 +25,16 @@ próprio teclado.
 | Ponto de acionamento por tecla (0,1 – 4,0 mm) | ✅ |
 | Ponto de soltura separado | ✅ |
 | Quick Trigger (rapid trigger) | ✅ |
-| Remapeamento de teclas | 🚧 |
+| Remapeamento: teclas, atalhos (Ctrl+C…), multimídia, desativar | ✅ |
+| Remapeamento: botões e rolagem do mouse | 🧪 beta |
+| DKS, Mod-Tap e Toggle | 🚧 protocolo pronto, falta a tela |
+| RGB por tecla | 🚧 protocolo decodificado |
 | Macros | 🚧 |
-| DKS, Mod-Tap e Toggle | 🚧 |
 | Calibração | 🚧 |
-| Luz lateral, RGB por tecla, trava do Win, tempo de repouso | 🚧 |
+| Luz lateral, trava do Win, tempo de repouso | 🚧 |
+
+O teclado não informa o próprio mapa de teclas, então o app guarda uma cópia
+do último mapa gravado. Veja o [roadmap](docs/ROADMAP.md) para os detalhes.
 
 Atualização de firmware está fora do escopo de propósito: um erro ali pode
 inutilizar o teclado.
@@ -67,6 +72,8 @@ src-tauri              app Tauri: expõe o protocolo para a interface
 frontend               interface em React + TypeScript
 udev                   regra de permissão
 docs/protocol.md       documentação do protocolo
+docs/ROADMAP.md        o que está pronto e o que falta
+AGENTS.md              guia para quem for contribuir (pessoas ou agentes)
 ```
 
 A crate `boyi-protocol` não depende do Tauri e pode ser usada sozinha:
@@ -87,8 +94,15 @@ cargo run -p boyi-protocol --example info
 ## Desenvolvimento
 
 ```bash
-cargo test -p boyi-protocol    # testes do protocolo (não precisam do teclado)
-npm run build                  # checagem de tipos e build da interface
+cargo test --workspace                 # testes do protocolo e do app (não precisam do teclado)
+npm run build                          # checagem de tipos e build da interface
+npm --prefix frontend run test:ui      # testes da interface (Playwright, IPC simulado)
+```
+
+Para restaurar o mapa de teclas de fábrica (desfaz qualquer remapeamento):
+
+```bash
+cargo run -p boyi-protocol --example restore_keymap
 ```
 
 Cada comando novo entra no protocolo só depois de testado num teclado real, e
