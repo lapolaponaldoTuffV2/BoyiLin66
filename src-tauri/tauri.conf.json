@@ -26,11 +26,34 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["appimage", "deb", "rpm"],
-    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.png"],
+    "targets": [
+      "appimage",
+      "deb",
+      "rpm"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.png"
+    ],
     "linux": {
-      "deb": { "files": { "/usr/lib/udev/rules.d/70-boyilin66.rules": "../udev/70-boyilin66.rules" } },
-      "rpm": { "files": { "/usr/lib/udev/rules.d/70-boyilin66.rules": "../udev/70-boyilin66.rules" } }
-    }
+      "deb": {
+        "files": {
+          "/usr/lib/udev/rules.d/70-boyilin66.rules": "../udev/70-boyilin66.rules"
+        },
+        "postInstallScript": "../packaging/reload-udev.sh",
+        "postRemoveScript": "../packaging/reload-udev.sh"
+      },
+      "rpm": {
+        "files": {
+          "/usr/lib/udev/rules.d/70-boyilin66.rules": "../udev/70-boyilin66.rules"
+        },
+        "postInstallScript": "../packaging/reload-udev.sh",
+        "postRemoveScript": "../packaging/reload-udev.sh"
+      }
+    },
+    "category": "Utility",
+    "shortDescription": "Configurador do teclado magnético BOYI 66 Pro"
   }
 }

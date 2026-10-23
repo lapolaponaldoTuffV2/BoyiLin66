@@ -43,17 +43,32 @@ inutilizar o teclado.
 
 ## Instalação
 
-### 1. Permissão de acesso ao teclado
+### AppImage (qualquer distribuição)
 
-Sem isso só o root consegue abrir o dispositivo. Os pacotes `.deb` e `.rpm`
-já instalam a regra; no AppImage ou compilando do código-fonte, rode uma vez:
+```bash
+curl -fsSL https://raw.githubusercontent.com/lapolaponaldoTuffV2/BoyiLin66/main/install.sh | bash
+```
+
+O script baixa o AppImage da última release para `~/.local/bin/boyilin66`, cria
+o atalho no menu e instala a regra de permissão do teclado (pede a senha de
+administrador uma vez). Para instalar um AppImage que você já tem, rode
+`./install.sh BoyiLin66.AppImage`; para remover, `./install.sh --uninstall`.
+
+### Pacotes `.deb` e `.rpm`
+
+Instale o pacote da release com o gerenciador da sua distribuição. Ele já traz
+a regra de permissão e a aplica na hora.
+
+### Permissão manual
+
+Sem a regra só o root consegue abrir o teclado. Se você compilou do código-fonte:
 
 ```bash
 sudo cp udev/70-boyilin66.rules /etc/udev/rules.d/
 sudo udevadm control --reload && sudo udevadm trigger
 ```
 
-### 2. Compilar
+### Compilar
 
 Requisitos: Rust estável, Node.js 20+ e as
 [dependências de sistema do Tauri](https://v2.tauri.app/start/prerequisites/#linux).

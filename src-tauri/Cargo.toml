@@ -1,5 +1,6 @@
 [package]
 name = "boyilin66"
+authors = ["lapolaponaldoTuffV2"]
 description = "Linux configurator for the BOYI 66 Pro magnetic keyboard"
 version.workspace = true
 edition.workspace = true

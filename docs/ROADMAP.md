@@ -16,6 +16,7 @@ from the app. Wire details are in [`protocol.md`](protocol.md).
 | Macros: key steps with pauses, four playback modes (`0x19`) | ✅ | ✅ Teclas |
 | Per-key colour for the Custom effect (`0x09`) | ✅ | ✅ Iluminação |
 | Per-key calibration (`0x21` subs `02`, `07`) | ✅ | ✅ Acionamento |
+| Packaging: AppImage + `install.sh`, `.deb`/`.rpm` with the udev rule applied on install | ✅ | — |
 | Sleep timers, what Win lock blocks (`0x14`) | sleep read ✅, writes 🧪 | 🧪 Sistema |
 | Side light effect, colour, brightness, speed (`0x08`) | read ✅, write 🧪 | 🧪 Iluminação |
 | Debounce, report rate, factory sensitivity reset (`0x21` subs `0A`, `09`, `06`) | reads ✅, writes 🧪 | 🧪 Acionamento |
@@ -27,7 +28,7 @@ tests of the captured bytes → Tauri command → UI → update `protocol.md`.
 
 1. **Lighting options**: give the six `0x07`/`0x08` option bytes (direction, colour mode) their own controls; today they are kept as read.
 2. **Factory reset** (`0x14`): decoded, to be tested with the owner present.
-3. **Packaging**: AppImage, `.deb`, `.rpm`, install script.
+3. **First release**: publish the AppImage, `.deb` and `.rpm` on GitHub (the install script fetches the latest release).
 
 ## Open questions
 
