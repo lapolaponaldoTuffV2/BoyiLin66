@@ -50,7 +50,8 @@ curl -fsSL https://raw.githubusercontent.com/lapolaponaldoTuffV2/BoyiLin66/main/
 
 O script baixa o AppImage da última release para `~/.local/bin/boyilin66`, cria
 o atalho no menu e instala a regra de permissão do teclado (pede a senha de
-administrador uma vez). Para instalar um AppImage que você já tem, rode
+administrador uma vez). Para **atualizar**, rode o mesmo comando: ele só baixa
+quando há versão nova e confere cada download com o `SHA256SUMS` da release. Para instalar um AppImage que você já tem, rode
 `./install.sh BoyiLin66.AppImage`; para remover, `./install.sh --uninstall`.
 
 ### Pacotes `.deb` e `.rpm`

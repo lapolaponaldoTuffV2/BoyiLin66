@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Instalador do BoyiLin66 (AppImage) para Linux:
+# Instalador do BoyiLin66 (AppImage) para Linux. Rodar de novo atualiza para a última versão:
 #   curl -fsSL https://raw.githubusercontent.com/lapolaponaldoTuffV2/BoyiLin66/main/install.sh | bash
 #   ./install.sh caminho/BoyiLin66.AppImage     # instala um AppImage já baixado ou compilado
 #   ./install.sh --uninstall
@@ -46,8 +46,21 @@ else
     || die "não foi possível consultar as releases (o repositório ainda é privado?)"
   url="$(printf '%s' "$release" | grep -o '"browser_download_url": *"[^"]*\.AppImage"' | head -n1 | sed 's/.*"\(https[^"]*\)"/\1/')"
   [ -n "$url" ] || die "a última release não tem AppImage"
-  say "Baixando $(basename "$url")"
-  curl -fL --progress-bar -o "$tmp/boyilin66" "$url"
+  tag="$(printf '%s' "$release" | grep -o '"tag_name": *"[^"]*"' | head -n1 | sed 's/.*"\([^"]*\)"$/\1/')"
+  sums="$(printf '%s' "$release" | grep -o '"browser_download_url": *"[^"]*SHA256SUMS"' | head -n1 | sed 's/.*"\(https[^"]*\)"/\1/')"
+  [ -n "$sums" ] || die "a última release não tem SHA256SUMS"
+  expected="$(curl -fsSL "$sums" | grep " $(basename "$url")\$" | cut -d' ' -f1)"
+  [ -n "$expected" ] || die "o SHA256SUMS não lista $(basename "$url")"
+  if [ -f "$app" ] && [ "$(sha256sum "$app" | cut -d' ' -f1)" = "$expected" ]; then
+    say "O BoyiLin66 $tag já está instalado; nada para baixar"
+    cp -- "$app" "$tmp/boyilin66"
+  else
+    [ -f "$app" ] && action="Atualizando para" || action="Baixando"
+    say "$action $tag"
+    curl -fL --progress-bar -o "$tmp/boyilin66" "$url"
+    # A download that does not match the published checksum is never installed.
+    [ "$(sha256sum "$tmp/boyilin66" | cut -d' ' -f1)" = "$expected" ] || die "o arquivo baixado não confere com o SHA256SUMS"
+  fi
 fi
 
 mkdir -p "$bin_dir" "$(dirname "$desktop")" "$(dirname "$icon")"
@@ -59,7 +72,8 @@ Type=Application
 Name=BoyiLin66
 Comment=Configurador do teclado BOYI 66 Pro
 Exec=$app
-Icon=boyilin66
+Icon=$icon
+StartupWMClass=boyilin66
 Terminal=false
 Categories=Utility;Settings;HardwareSettings;
 DESKTOP
@@ -78,5 +92,5 @@ fi
 
 command -v fusermount >/dev/null || command -v fusermount3 >/dev/null \
   || say "Aviso: o AppImage precisa do FUSE (pacote fuse2/libfuse2) para abrir"
-say "BoyiLin66 instalado em $app"
+say "BoyiLin66${tag:+ $tag} instalado em $app"
 case ":$PATH:" in *":$bin_dir:"*) ;; *) say "Adicione $bin_dir ao PATH para rodar 'boyilin66' no terminal";; esac
