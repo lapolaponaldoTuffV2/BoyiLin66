@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 
 // Reuse our clean-room layout, including the rightmost and bottom keys.
 const layout = [...readFileSync(new URL("../../crates/boyi-protocol/src/layout.rs", import.meta.url), "utf8")
-  .matchAll(/k\((\d+), (\d+), ("(?:\\.|[^"\\])*"), ([\d.]+), ([\d.]+)\)/g)]
+  .matchAll(/k\((\d+), (\d+), ("(?:\\.|[^"\\])*"), (?:0x[0-9a-f]+|0), ([\d.]+), ([\d.]+)\)/g)]
   .map(([, row, col, label, x, w]) => ({
     pos: { row: Number(row), col: Number(col) }, label: JSON.parse(label),
     x: Number(x), y: Number(row) - 1, w: Number(w),
