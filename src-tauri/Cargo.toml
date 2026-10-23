@@ -1,0 +1,19 @@
+[package]
+name = "boyilin66"
+description = "Linux configurator for the BOYI 66 Pro magnetic keyboard"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "boyilin66_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[dependencies]
+boyi-protocol = { path = "../crates/boyi-protocol" }
+serde = { version = "1", features = ["derive"] }
+tauri = { version = "2", features = [] }
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }

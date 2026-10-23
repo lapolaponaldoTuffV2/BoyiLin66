@@ -1,0 +1,36 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "BoyiLin66",
+  "version": "0.1.0",
+  "identifier": "io.github.lapolaponaldotuffv2.boyilin66",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devUrl": "http://localhost:5173",
+    "frontendDist": "../frontend/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "BoyiLin66",
+        "width": 1180,
+        "height": 760,
+        "minWidth": 960,
+        "minHeight": 640
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost; style-src 'self' 'unsafe-inline'; img-src 'self' data:",
+      "devCsp": "default-src 'self'; connect-src ipc: http://ipc.localhost http://localhost:5173 ws://localhost:5173; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["appimage", "deb", "rpm"],
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.png"],
+    "linux": {
+      "deb": { "files": { "/usr/lib/udev/rules.d/70-boyilin66.rules": "../udev/70-boyilin66.rules" } },
+      "rpm": { "files": { "/usr/lib/udev/rules.d/70-boyilin66.rules": "../udev/70-boyilin66.rules" } }
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "boyilin66-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "tauri": "npm --prefix frontend exec -- tauri"
+  }
+}

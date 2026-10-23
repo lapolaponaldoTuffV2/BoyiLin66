@@ -1,0 +1,181 @@
+//! Finding the keyboard and exchanging frames over `/dev/hidraw*`.
+
+use std::fs::{self, File, OpenOptions};
+use std::io::{ErrorKind, Read, Write};
+use std::os::unix::fs::OpenOptionsExt;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
+
+use crate::frame::{self, Frame};
+use crate::layout::KeyPos;
+use crate::led::{self, LedConfig};
+use crate::magnetic::{self, KeyTrigger, TriggerSettings};
+use crate::{Error, Result};
+
+pub const VENDOR_ID: u16 = 0x0416;
+pub const PRODUCT_ID: u16 = 0x7372;
+/// First bytes of the config interface's report descriptor: Usage Page 0xFF1B.
+const CONFIG_DESCRIPTOR_PREFIX: [u8; 3] = [0x06, 0x1b, 0xff];
+const O_NONBLOCK: i32 = 0o4000;
+const REPLY_TIMEOUT: Duration = Duration::from_millis(300);
+
+/// Basic facts the keyboard reports about itself.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct DeviceInfo {
+    pub path: PathBuf,
+    pub serial: String,
+    /// Raw handshake payload, kept until its fields are understood.
+    pub handshake: Vec<u8>,
+}
+
+/// An open connection to the keyboard's configuration interface.
+pub struct Keyboard {
+    path: PathBuf,
+    file: Mutex<File>,
+}
+
+impl Keyboard {
+    /// Lists the hidraw nodes that are the config interface of a BOYI 66 Pro.
+    pub fn find() -> Vec<PathBuf> {
+        let Ok(entries) = fs::read_dir("/sys/class/hidraw") else {
+            return vec![];
+        };
+        let mut found: Vec<PathBuf> = entries
+            .flatten()
+            .filter(|e| is_config_interface(&e.path()))
+            .map(|e| Path::new("/dev").join(e.file_name()))
+            .collect();
+        found.sort();
+        found
+    }
+
+    pub fn open_first() -> Result<Self> {
+        Self::open(Self::find().into_iter().next().ok_or(Error::NotFound)?)
+    }
+
+    /// Opens a hidraw node and performs the handshake the firmware expects.
+    pub fn open(path: impl Into<PathBuf>) -> Result<Self> {
+        let path = path.into();
+        let file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .custom_flags(O_NONBLOCK)
+            .open(&path)?;
+        let kb = Self {
+            path,
+            file: Mutex::new(file),
+        };
+        kb.handshake()?;
+        Ok(kb)
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    /// Sends a frame and returns the first reply to the same command.
+    pub fn request(&self, frame: &Frame, min_payload: usize) -> Result<Frame> {
+        let mut file = self.file.lock().unwrap_or_else(|e| e.into_inner());
+        drain(&mut file)?;
+        file.write_all(&frame.0)?;
+        let deadline = Instant::now() + REPLY_TIMEOUT;
+        let mut buf = [0u8; frame::LEN];
+        while Instant::now() < deadline {
+            match file.read(&mut buf) {
+                Ok(n) if n == frame::LEN && buf[1] == frame.cmd() => {
+                    return Frame::parse_reply(&buf, frame.cmd(), min_payload);
+                }
+                Ok(_) => {}
+                Err(e) if e.kind() == ErrorKind::WouldBlock => {
+                    std::thread::sleep(Duration::from_millis(5))
+                }
+                Err(e) => return Err(e.into()),
+            }
+        }
+        Err(Error::Timeout(frame.cmd()))
+    }
+
+    /// Sends a frame the firmware does not answer.
+    pub fn send(&self, frame: &Frame) -> Result<()> {
+        let mut file = self.file.lock().unwrap_or_else(|e| e.into_inner());
+        file.write_all(&frame.0)?;
+        Ok(())
+    }
+
+    fn handshake(&self) -> Result<Vec<u8>> {
+        Ok(self
+            .request(&Frame::new(0x01, 0, 1, &[1]), 1)?
+            .payload()
+            .to_vec())
+    }
+
+    pub fn info(&self) -> Result<DeviceInfo> {
+        let handshake = self.handshake()?;
+        let sn = self.request(&Frame::new(0x15, 0, 0, &[]), 1)?;
+        Ok(DeviceInfo {
+            path: self.path.clone(),
+            serial: String::from_utf8_lossy(sn.payload())
+                .trim_end_matches('\0')
+                .to_owned(),
+            handshake,
+        })
+    }
+
+    pub fn led(&self) -> Result<LedConfig> {
+        led::parse(&self.request(&led::read_frame(), led::REPLY_LEN)?)
+    }
+
+    /// Writes the lighting config. The firmware sends no reply, so this reads
+    /// the config back and fails if it did not take.
+    pub fn set_led(&self, cfg: &LedConfig) -> Result<LedConfig> {
+        self.send(&led::write_frame(cfg)?)?;
+        std::thread::sleep(Duration::from_millis(50));
+        let now = self.led()?;
+        if now.mode != cfg.mode || now.color != cfg.color {
+            return Err(Error::BadReply {
+                cmd: led::CMD,
+                reason: "keyboard kept the old lighting",
+            });
+        }
+        Ok(now)
+    }
+
+    pub fn key_trigger(&self, key: KeyPos) -> Result<KeyTrigger> {
+        magnetic::parse_key(
+            &self.request(&magnetic::query_key_frame(key), magnetic::KEY_REPLY_LEN)?,
+        )
+    }
+
+    /// Applies one trigger setting to several keys at once.
+    pub fn set_trigger(&self, keys: &[KeyPos], settings: &TriggerSettings) -> Result<()> {
+        let reply = self.request(&magnetic::apply_frame(keys, settings)?, 1)?;
+        match reply.payload()[0] {
+            0 => Ok(()),
+            _ => Err(Error::BadReply {
+                cmd: magnetic::CMD,
+                reason: "keyboard rejected the trigger setting",
+            }),
+        }
+    }
+}
+
+fn is_config_interface(sys: &Path) -> bool {
+    let uevent = fs::read_to_string(sys.join("device/uevent")).unwrap_or_default();
+    let id = format!("HID_ID=0003:{VENDOR_ID:08X}:{PRODUCT_ID:08X}");
+    uevent.lines().any(|l| l == id)
+        && fs::read(sys.join("device/report_descriptor"))
+            .is_ok_and(|d| d.starts_with(&CONFIG_DESCRIPTOR_PREFIX))
+}
+
+/// Discards reports left over from earlier commands so replies line up.
+fn drain(file: &mut File) -> Result<()> {
+    let mut buf = [0u8; frame::LEN];
+    loop {
+        match file.read(&mut buf) {
+            Ok(_) => {}
+            Err(e) if e.kind() == ErrorKind::WouldBlock => return Ok(()),
+            Err(e) => return Err(e.into()),
+        }
+    }
+}

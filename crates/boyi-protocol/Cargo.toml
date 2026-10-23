@@ -1,0 +1,11 @@
+[package]
+name = "boyi-protocol"
+description = "Configuration protocol for the BOYI 66 Pro magnetic keyboard over Linux hidraw"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
