@@ -55,7 +55,6 @@ export function System({ onError }: { onError: (e: unknown) => void }) {
         </button>
       }>
         <fieldset className="remap-fields" disabled={busy} aria-label="Repouso">
-          <p className="notice"><strong className="badge">beta</strong> A leitura foi confirmada no teclado; a gravação ainda não.</p>
           <Toggle label="Nunca dormir" checked={sleep.never} onChange={(never) => setSleep({ ...sleep, never })} />
           {!sleep.never && <>
             <label><span id={`${id}-light`}>Luz apaga após (segundos, 0–60000)</span>

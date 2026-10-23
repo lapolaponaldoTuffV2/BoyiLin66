@@ -5,12 +5,12 @@ const open = async (page: import("@playwright/test").Page, query = "") => {
   await page.getByRole("button", { name: "Acionamento", exact: true }).click();
 };
 
-test("performance shows the keyboard's debounce and report rate, marked beta, and writes both", async ({ page }) => {
+test("performance shows the keyboard's debounce and report rate and writes both", async ({ page }) => {
   await open(page);
   await expect(page.getByText("Desempenho lido do teclado.")).toBeVisible();
   await expect(page.getByLabel("Anti-repique (debounce)")).toHaveValue("3");
   await expect(page.getByLabel("Taxa de relatório")).toHaveValue("8");
-  await expect(page.getByLabel("Desempenho do teclado").locator(".badge")).toHaveText("beta");
+  await expect(page.getByLabel("Desempenho do teclado").locator(".badge")).toHaveCount(0);
   await page.getByLabel("Anti-repique (debounce)").selectOption("5");
   await page.getByLabel("Taxa de relatório").selectOption("1");
   await page.getByRole("button", { name: "Aplicar desempenho" }).click();

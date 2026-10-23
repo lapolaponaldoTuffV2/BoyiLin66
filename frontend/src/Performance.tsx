@@ -4,7 +4,7 @@ import { Icon, Panel } from "./ui";
 
 const RATES = [1, 2, 4, 8];
 
-/** Keyboard-wide debounce and report rate, plus the factory sensitivity reset. Writes are beta. */
+/** Keyboard-wide debounce and report rate, plus the factory sensitivity reset. */
 export function Performance({ onError, onReset }: { onError: (e: unknown) => void; onReset: () => void }) {
   const [value, setValue] = useState<Timing | null>(null);
   const [busy, setBusy] = useState(false);
@@ -56,8 +56,6 @@ export function Performance({ onError, onReset }: { onError: (e: unknown) => voi
       <p className="muted" role="status">{status}</p>
       {!value && !busy && <button type="button" className="ghost read-button" onClick={load}>Tentar novamente</button>}
       {value && <fieldset className="remap-fields" disabled={busy} aria-label="Desempenho do teclado">
-        <p className="notice"><strong className="badge">beta</strong> A leitura foi confirmada no teclado; gravar estes
-          ajustes e restaurar a sensibilidade ainda não.</p>
         <label><span id={`${id}-debounce`}>Anti-repique (debounce)</span>
           <select aria-labelledby={`${id}-debounce`} aria-describedby={`${id}-debounce-hint`} value={value.debounce}
             onChange={(e) => setValue({ ...value, debounce: Number(e.target.value) })}>

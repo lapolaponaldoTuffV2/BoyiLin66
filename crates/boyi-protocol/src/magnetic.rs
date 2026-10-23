@@ -119,7 +119,7 @@ pub(crate) fn apply_frame(keys: &[KeyPos], s: &TriggerSettings) -> Result<Frame>
     Ok(Frame::new(CMD, 0, LEN, &payload))
 }
 
-/// Keyboard-wide timing. Reads are confirmed on hardware; writes are not yet.
+/// Keyboard-wide timing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Performance {
     /// Debounce ("anti-shake") level, 0–7.
@@ -172,7 +172,7 @@ pub(crate) fn parse_report_rate(reply: &Frame) -> Result<u8> {
     parse_setting(reply, SUB_REPORT_RATE)
 }
 
-/// Resets every key's travel settings to the factory values. **Unconfirmed.**
+/// Resets every key's travel settings to the factory values.
 pub(crate) fn reset_frame() -> Frame {
     Frame::new(CMD, 0, LEN, &[SUB_RESET])
 }

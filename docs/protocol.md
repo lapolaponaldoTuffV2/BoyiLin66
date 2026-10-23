@@ -109,9 +109,9 @@ bit *n* selects row *n*.
 | `mode mask[22] press release qt_press qt_release` | Apply to every key in `mask`. Reply payload `00` on success |
 | `02 mask[22]` | Put the masked keys in calibration mode; an empty mask leaves it. Ack `00` |
 | `07 row col` | Calibrate one key: reply `07 01` (running), then unsolicited `07 00` (done) or `07 02` (failed) once the key was pressed to the bottom |
-| `06` | Reset all keys to factory sensitivity, **unconfirmed** |
-| `09 00` · `09 01 rate` | Read / write the USB report rate in kHz: `1`, `2`, `4` or `8`. Reply `09 rate`. Write **unconfirmed** |
-| `0A 00` · `0A 01 level` | Read / write key debounce, level `0`–`7`. Reply `0A level`. Write **unconfirmed** |
+| `06` | Reset every key to the factory travel settings: 2.0 mm press and release, Quick Trigger off at 0.5 mm. No reply |
+| `09 00` · `09 01 rate` | Read / write the USB report rate in kHz: `1`, `2`, `4` or `8`. Reply `09 rate`. The write is not answered; read it back |
+| `0A 00` · `0A 01 level` | Read / write key debounce, level `0`–`7`. Reply `0A level`. The write is not answered; read it back |
 
 `mode` flags: `0x01` = separate release point, `0x0C` = Quick Trigger. When
 the release point is not separate, send `release` equal to `press`.
@@ -200,7 +200,7 @@ at fixed frame offsets past it. Replies declare length 0.
 | Frame | Meaning |
 |---|---|
 | `01 14 02 00 00 01 00` | Read the sleep timers. Reply bytes 9–10: light timeout, 11–12: keyboard timeout (seconds, big-endian), 13: never sleep (`1`) |
-| `01 14 01 00 00 01 00 00 00 L L K K n` | Write the sleep timers, same layout. The official software keeps the keyboard timeout at 300–60000 s and the light timeout no longer. **Unconfirmed** |
+| `01 14 01 00 00 01 00 00 00 L L K K n` | Write the sleep timers, same layout. The official software keeps the keyboard timeout at 300–60000 s and the light timeout no longer. Not answered; read it back |
 | `01 14 00 00 00 01 00`, bytes 13–16 | What Win lock blocks: Shift+Tab, Alt+Tab, the Windows key, Alt+F4 (`1` = blocked). No read exists. Not implemented: untested, and of little use on Linux |
 | `01 14 00 00 00 01 01` | Factory reset, **unconfirmed** and deliberately not implemented |
 

@@ -136,7 +136,7 @@ impl Keyboard {
     }
 
     /// Writes the sleep timers, then reads them back and fails if they did
-    /// not take. Not confirmed on hardware yet.
+    /// not take.
     pub fn set_sleep(&self, s: &Sleep) -> Result<Sleep> {
         self.send(&system::sleep_write_frame(s)?)?;
         std::thread::sleep(Duration::from_millis(50));
@@ -174,7 +174,7 @@ impl Keyboard {
     }
 
     /// Writes debounce and report rate, then reads them back and fails if
-    /// they did not take. The writes are not confirmed on hardware yet.
+    /// they did not take.
     pub fn set_performance(&self, p: &Performance) -> Result<Performance> {
         for frame in magnetic::performance_frames(p)? {
             self.send(&frame)?;
@@ -190,8 +190,9 @@ impl Keyboard {
         Ok(now)
     }
 
-    /// Resets every key's travel settings to the factory values. Not
-    /// confirmed on hardware; read the keys back afterwards.
+    /// Resets every key's travel settings to the factory values (2.0 mm press
+    /// and release, Quick Trigger off at 0.5 mm). The keyboard does not answer;
+    /// read the keys back afterwards.
     pub fn reset_sensitivity(&self) -> Result<()> {
         self.send(&magnetic::reset_frame())?;
         std::thread::sleep(Duration::from_millis(200));
