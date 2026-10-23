@@ -80,21 +80,7 @@ impl Keyboard {
         let mut file = self.file.lock().unwrap_or_else(|e| e.into_inner());
         drain(&mut file)?;
         file.write_all(&frame.0)?;
-        let deadline = Instant::now() + REPLY_TIMEOUT;
-        let mut buf = [0u8; frame::LEN];
-        while Instant::now() < deadline {
-            match file.read(&mut buf) {
-                Ok(n) if n == frame::LEN && buf[1] == frame.cmd() => {
-                    return Frame::parse_reply(&buf, frame.cmd(), min_payload);
-                }
-                Ok(_) => {}
-                Err(e) if e.kind() == ErrorKind::WouldBlock => {
-                    std::thread::sleep(Duration::from_millis(5))
-                }
-                Err(e) => return Err(e.into()),
-            }
-        }
-        Err(Error::Timeout(frame.cmd()))
+        read_reply(&mut file, frame.cmd(), min_payload, REPLY_TIMEOUT)
     }
 
     /// Sends a frame the firmware does not answer.
@@ -153,6 +139,34 @@ impl Keyboard {
         Ok(())
     }
 
+    /// Calibrates one key: the user presses it to the bottom and releases it
+    /// within `timeout`. Returns whether the keyboard reported success. The
+    /// key always leaves calibration mode afterwards.
+    pub fn calibrate_key(&self, key: KeyPos, timeout: Duration) -> Result<bool> {
+        check_write_ack(&self.request(&magnetic::calibration_keys_frame(&[key])?, 1)?)?;
+        let result = self.wait_calibration(key, timeout);
+        let leave = self.request(&magnetic::calibration_keys_frame(&[])?, 1);
+        let done = result?;
+        check_write_ack(&leave?)?;
+        Ok(done)
+    }
+
+    fn wait_calibration(&self, key: KeyPos, timeout: Duration) -> Result<bool> {
+        let mut reply = self.request(&magnetic::calibrate_frame(key), 2)?;
+        let deadline = Instant::now() + timeout;
+        let mut file = self.file.lock().unwrap_or_else(|e| e.into_inner());
+        loop {
+            if let Some(done) = magnetic::calibration_status(&reply) {
+                return Ok(done);
+            }
+            let left = deadline.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                return Err(Error::Timeout(magnetic::CMD));
+            }
+            reply = read_reply(&mut file, magnetic::CMD, 2, left)?;
+        }
+    }
+
     pub fn key_trigger(&self, key: KeyPos) -> Result<KeyTrigger> {
         magnetic::parse_key(
             &self.request(&magnetic::query_key_frame(key), magnetic::KEY_REPLY_LEN)?,
@@ -207,6 +221,25 @@ fn is_config_interface(sys: &Path) -> bool {
 }
 
 /// Discards reports left over from earlier commands so replies line up.
+/// Waits up to `timeout` for a frame answering `cmd`.
+fn read_reply(file: &mut File, cmd: u8, min_payload: usize, timeout: Duration) -> Result<Frame> {
+    let deadline = Instant::now() + timeout;
+    let mut buf = [0u8; frame::LEN];
+    while Instant::now() < deadline {
+        match file.read(&mut buf) {
+            Ok(n) if n == frame::LEN && buf[1] == cmd => {
+                return Frame::parse_reply(&buf, cmd, min_payload);
+            }
+            Ok(_) => {}
+            Err(e) if e.kind() == ErrorKind::WouldBlock => {
+                std::thread::sleep(Duration::from_millis(5))
+            }
+            Err(e) => return Err(e.into()),
+        }
+    }
+    Err(Error::Timeout(cmd))
+}
+
 fn drain(file: &mut File) -> Result<()> {
     let mut buf = [0u8; frame::LEN];
     loop {

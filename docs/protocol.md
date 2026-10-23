@@ -106,6 +106,8 @@ bit *n* selects row *n*.
 | `04` | Read total travel. Reply `04 <travel>` |
 | `05 row col` | Read one key. Reply `05 mode press release qt_press qt_release` (length byte says 4, but all six bytes are sent) |
 | `mode mask[22] press release qt_press qt_release` | Apply to every key in `mask`. Reply payload `00` on success |
+| `02 mask[22]` | Put the masked keys in calibration mode; an empty mask leaves it. Ack `00` |
+| `07 row col` | Calibrate one key: reply `07 01` (running), then unsolicited `07 00` (done) or `07 02` (failed) once the key was pressed to the bottom |
 | `06` | Reset all keys to factory sensitivity, **unconfirmed** |
 | `09 01 value` | Rate of return, **unconfirmed** |
 | `0A 01 value` | Key debounce ("anti-shake"), **unconfirmed** |
@@ -196,5 +198,5 @@ Payload starts with a sub-command: `01` factory reset, `02` Windows-key lock,
 
 ## Not covered yet
 
-Calibration, Win-lock and sleep timer, side light writes, the Fn layer. Firmware updates are
+All-keys calibration, Win-lock and sleep timer, side light writes, the Fn layer. Firmware updates are
 deliberately out of scope.

@@ -122,6 +122,13 @@ fn set_trigger(
     conn.with(|kb| kb.set_trigger(&keys, &settings))
 }
 
+/// Calibrates one key; the user has 15 s to press it to the bottom. Runs off
+/// the main thread so the window stays responsive while waiting.
+#[tauri::command(async)]
+fn calibrate_key(conn: State<Connection>, key: KeyPos) -> Result<bool, String> {
+    conn.with(|kb| kb.calibrate_key(key, std::time::Duration::from_secs(15)))
+}
+
 /// The last keymap this app wrote, or the factory layout if it never wrote one.
 #[tauri::command]
 fn get_keymap(file: State<SavedCopy<Keymap>>) -> Result<Keymap, String> {
@@ -175,6 +182,7 @@ pub fn run() {
             set_led,
             get_key_trigger,
             set_trigger,
+            calibrate_key,
             get_keymap,
             factory_keymap,
             set_keymap,

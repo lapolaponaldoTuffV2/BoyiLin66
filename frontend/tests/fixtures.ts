@@ -37,6 +37,7 @@ export const test = base.extend({
             case "set_keymap": state.keymap = structuredClone(args.keymap); return;
             case "get_led": return structuredClone(state.led);
             case "set_led": state.led = args.config; return structuredClone(state.led);
+            case "calibrate_key": return true;
             case "get_key_colors": return structuredClone(state.keyColors);
             case "set_key_colors": state.keyColors = structuredClone(args.colors); return;
             case "get_key_trigger": return structuredClone(state.triggers[`${args.key.row}:${args.key.col}`]);

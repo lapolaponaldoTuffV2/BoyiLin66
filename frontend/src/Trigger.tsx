@@ -74,6 +74,29 @@ export function Trigger({ keys, onError }: { keys: Key[]; onError: (e: unknown) 
     }
   };
 
+  const calibrate = async () => {
+    if (busy || selected.size === 0) return;
+    const id = request.current;
+    const chosen = keys.filter((k) => selected.has(posId(k.pos)));
+    const failed: string[] = [];
+    setBusy(true);
+    try {
+      for (const [i, key] of chosen.entries()) {
+        setStatus(`Calibrando ${key.label || "Espaço"} (${i + 1} de ${chosen.length}): aperte a tecla até o fundo e solte.`);
+        if (!await api.calibrateKey(key.pos)) failed.push(key.label || "Espaço");
+        if (id !== request.current) return;
+      }
+      setStatus(failed.length ? `Calibração falhou em: ${failed.join(", ")}. Tente de novo.` : "Calibração concluída.");
+      onError(null);
+    } catch (e) {
+      if (id !== request.current) return;
+      setStatus("Calibração interrompida: a tecla não foi pressionada a tempo ou o teclado não respondeu.");
+      onError(e);
+    } finally {
+      if (id === request.current) setBusy(false);
+    }
+  };
+
   const update = (patch: Partial<TriggerSettings>) => setSettings({ ...settings, ...patch });
 
   return (
@@ -96,12 +119,14 @@ export function Trigger({ keys, onError }: { keys: Key[]; onError: (e: unknown) 
                 Selecionar todas
               </button>
               <button type="button" className="ghost" onClick={() => setSelected(new Set())}>Limpar</button>
+              <button type="button" className="ghost" disabled={selected.size === 0} onClick={calibrate}>Calibrar</button>
             </div>
           }
         >
           <Keyboard keys={keys} selected={selected} onToggle={toggle}
             caption={(k) => { const t = current.get(posId(k.pos)); return t && mm(t.press); }} />
-          <p className="muted">Use clique, Tab + Espaço ou Enter para escolher; segure Shift ou Ctrl para selecionar várias.</p>
+          <p className="muted">Use clique, Tab + Espaço ou Enter para escolher; segure Shift ou Ctrl para selecionar várias.
+            Calibrar percorre as teclas selecionadas uma a uma: aperte cada uma até o fundo quando pedido.</p>
         </Panel>
       </fieldset>
       <fieldset disabled={busy || loadFailed || current.size !== keys.length || selected.size === 0} aria-label="Ajustes de acionamento">

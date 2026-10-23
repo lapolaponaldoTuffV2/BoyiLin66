@@ -57,6 +57,8 @@ export const api = {
   setKeyColors: (colors: KeyColors) => invoke<void>("set_key_colors", { colors }),
   getKeyTrigger: (key: KeyPos) => invoke<TriggerSettings>("get_key_trigger", { key }),
   setTrigger: (keys: KeyPos[], settings: TriggerSettings) => invoke<void>("set_trigger", { keys, settings }),
+  /** Resolves true when the keyboard reports success; the user must press the key meanwhile. */
+  calibrateKey: (key: KeyPos) => invoke<boolean>("calibrate_key", { key }),
   getKeymap: () => invoke<Keymap>("get_keymap"),
   factoryKeymap: () => invoke<Keymap>("factory_keymap"),
   setKeymap: (keymap: Keymap) => invoke<void>("set_keymap", { keymap }),

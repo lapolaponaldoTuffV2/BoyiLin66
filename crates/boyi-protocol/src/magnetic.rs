@@ -12,6 +12,9 @@ use crate::{Error, Result};
 pub const CMD: u8 = 0x21;
 const LEN: u8 = 0x18;
 const SUB_QUERY_KEY: u8 = 0x05;
+/// In the mode byte's place: puts the masked keys in calibration mode; an empty mask leaves it.
+const SUB_CALIBRATION_KEYS: u8 = 0x02;
+const SUB_CALIBRATE: u8 = 0x07;
 /// The per-key reply declares 4 payload bytes but carries 6; only the declared part is checked.
 pub(crate) const KEY_REPLY_LEN: usize = 4;
 
@@ -109,6 +112,28 @@ pub(crate) fn apply_frame(keys: &[KeyPos], s: &TriggerSettings) -> Result<Frame>
     Ok(Frame::new(CMD, 0, LEN, &payload))
 }
 
+/// Marks `keys` for calibration, or with no keys leaves calibration mode.
+pub(crate) fn calibration_keys_frame(keys: &[KeyPos]) -> Result<Frame> {
+    let mut payload = vec![SUB_CALIBRATION_KEYS];
+    payload.extend_from_slice(&key_mask(keys)?);
+    Ok(Frame::new(CMD, 0, LEN, &payload))
+}
+
+/// Starts calibrating `key`. The reply and a later unsolicited frame carry
+/// `07 status`, see [`calibration_status`].
+pub(crate) fn calibrate_frame(key: KeyPos) -> Frame {
+    Frame::new(CMD, 0, LEN, &[SUB_CALIBRATE, key.row, key.col])
+}
+
+/// `Some(true)` done, `Some(false)` failed, `None` still running or not a calibration frame.
+pub(crate) fn calibration_status(reply: &Frame) -> Option<bool> {
+    match reply.payload() {
+        [SUB_CALIBRATE, 0, ..] => Some(true),
+        [SUB_CALIBRATE, 2, ..] => Some(false),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -134,6 +159,25 @@ mod tests {
         expected.extend([0; 20]);
         expected.extend([15, 15, 5, 5]);
         assert_eq!(&f.0[..expected.len()], &expected[..]);
+    }
+
+    #[test]
+    fn calibration_matches_hardware_test() {
+        let caps = KeyPos { row: 3, col: 0 };
+        let f = calibration_keys_frame(&[caps]).unwrap();
+        assert_eq!(&f.0[..8], &[0x01, 0x21, 0, 0, 0, 0x18, 0x02, 0x08]);
+        assert!(calibration_keys_frame(&[]).unwrap().0[7..]
+            .iter()
+            .all(|&b| b == 0));
+        assert_eq!(
+            &calibrate_frame(caps).0[..9],
+            &[0x01, 0x21, 0, 0, 0, 0x18, 0x07, 3, 0]
+        );
+        let reply = |b: &[u8]| Frame::new(CMD, 0, b.len() as u8, b);
+        assert_eq!(calibration_status(&reply(&[0x07, 0x01])), None);
+        assert_eq!(calibration_status(&reply(&[0x07, 0x00])), Some(true));
+        assert_eq!(calibration_status(&reply(&[0x07, 0x02])), Some(false));
+        assert_eq!(calibration_status(&reply(&[0x00])), None);
     }
 
     #[test]
