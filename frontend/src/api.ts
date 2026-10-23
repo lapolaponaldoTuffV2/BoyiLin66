@@ -11,12 +11,6 @@ export const LED_MODES = [
 export type LedMode = (typeof LED_MODES)[number];
 /** `options` are six effect bytes of unknown meaning, sent back as read. */
 export type LedConfig = { mode: LedMode; brightness: number; speed: number; color: [number, number, number]; options: number[] };
-export const SIDE_MODES = ["Static", "Breath", "Wave", "Collision", "Neon", "Off"] as const;
-/** `options` are six effect bytes of unknown meaning, sent back as read. */
-export type SideLight = {
-  mode: (typeof SIDE_MODES)[number]; brightness: number; speed: number;
-  color: [number, number, number]; options: number[];
-};
 /** Seconds; `never` turns sleep off. */
 export type Sleep = { light_s: number; keyboard_s: number; never: boolean };
 /** What stays blocked while Win lock is on. The keyboard cannot report it. */
@@ -67,8 +61,6 @@ export const api = {
   deviceInfo: () => invoke<DeviceInfo>("device_info"),
   getLed: () => invoke<LedConfig>("get_led"),
   setLed: (config: LedConfig) => invoke<LedConfig>("set_led", { config }),
-  getSideLight: () => invoke<SideLight>("get_side_light"),
-  setSideLight: (side: SideLight) => invoke<SideLight>("set_side_light", { side }),
   getSleep: () => invoke<Sleep>("get_sleep"),
   setSleep: (sleep: Sleep) => invoke<Sleep>("set_sleep", { sleep }),
   getWinLock: () => invoke<WinLock>("get_win_lock"),

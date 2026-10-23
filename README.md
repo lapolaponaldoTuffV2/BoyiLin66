@@ -32,7 +32,6 @@ próprio teclado.
 | Macros: gravar teclas e pausas, repetir, liga/desliga, enquanto segurar (até 10) | ✅ |
 | Calibração por tecla | ✅ |
 | Anti-repique, taxa de relatório (1–8 kHz), restaurar sensibilidade | 🧪 beta |
-| Luz lateral | 🧪 beta |
 | Trava do Win (o que bloquear), tempo de repouso | 🧪 beta |
 
 O teclado não informa o próprio mapa de teclas, então o app guarda uma cópia

@@ -86,23 +86,11 @@ reply; read it back.
 | 7 | Aurora | 100 | Music rhythm |
 | 8 | Ripple | | |
 
-### `0x08` Side light
+### `0x08` Side light (not on the BOYI 66 Pro)
 
-Read with byte 2 = `1`; the reply has the same shape as `0x07`: effect,
-brightness 0–4, speed 0–4, R G B, then six option bytes.
-
-| Id | Effect |
-|---|---|
-| 0 | Static |
-| 1 | Breath |
-| 2 | Wave |
-| 3 | Collision |
-| 4 | Neon |
-| 5 | Off |
-
-Write: byte 2 = `0`, length `0x0D`, same payload. The official software sends
-the option bytes it last read, clearing option byte 4 for the static effect.
-Writing is **unconfirmed**.
+The official software shares this command with models that have a side light
+strip. The BOYI 66 Pro has none: a read (byte 2 = `1`) answers with default
+values, and writes are ignored.
 
 ### `0x21` Hall effect settings
 

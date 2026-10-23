@@ -2,7 +2,6 @@ import { useEffect, useId, useRef, useState } from "react";
 import { api, Key, KeyColors, LED_MODES, LedConfig, LedMode, posId } from "./api";
 import { Keyboard } from "./Keyboard";
 import { keyIndex } from "./keymap";
-import { SideLightPanel } from "./SideLight";
 import { fromHex, Icon, Panel, Slider, toHex } from "./ui";
 
 const MODE_NAMES: Record<LedMode, string> = {
@@ -158,7 +157,6 @@ export function Lighting({ keys, onError }: { keys: Key[]; onError: (e: unknown)
           <Icon name="refresh" /> Ler iluminação do teclado
         </button>
       </>}
-      <SideLightPanel onError={onError} />
     </div>
   );
 }

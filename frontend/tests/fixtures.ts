@@ -19,7 +19,6 @@ export const test = base.extend({
         performance: { debounce: 3, report_rate_khz: 8 },
         sleep: { light_s: 60, keyboard_s: 1800, never: false },
         winLock: { windows: false, shift_tab: false, alt_tab: false, alt_f4: false },
-        side: { mode: "Wave", brightness: 4, speed: 3, color: [255, 0, 0], options: [0, 0, 0, 0, 1, 0] },
         keyColors: Array.from({ length: 132 }, () => [255, 255, 255]),
         triggers: Object.fromEntries(keys.map((key, i) => [`${key.pos.row}:${key.pos.col}`, {
           press: i === 1 ? 20 : 10, release: i === 1 ? 20 : 10,
@@ -42,8 +41,6 @@ export const test = base.extend({
             case "get_led": return structuredClone(state.led);
             case "set_led": state.led = args.config; return structuredClone(state.led);
             case "calibrate_key": return true;
-            case "get_side_light": return structuredClone(state.side);
-            case "set_side_light": state.side = structuredClone(args.side); return structuredClone(state.side);
             case "get_sleep": return structuredClone(state.sleep);
             case "set_sleep": state.sleep = structuredClone(args.sleep); return structuredClone(state.sleep);
             case "get_win_lock": return structuredClone(state.winLock);
