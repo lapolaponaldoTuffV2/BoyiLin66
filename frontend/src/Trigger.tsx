@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { api, Key, posId, TriggerSettings } from "./api";
 import { Keyboard } from "./Keyboard";
-import { Icon, Panel, Slider, Toggle } from "./ui";
+import { Icon, mm, Panel, Slider, Toggle } from "./ui";
 
-const mm = (v: number) => `${(v / 10).toFixed(1).replace(".", ",")} mm`;
 const DEFAULT: TriggerSettings = { press: 10, release: 10, separate: false, quick_trigger: false, qt_press: 5, qt_release: 5 };
 
 export function Trigger({ keys, onError }: { keys: Key[]; onError: (e: unknown) => void }) {

@@ -27,7 +27,7 @@ próprio teclado.
 | Quick Trigger (rapid trigger) | ✅ |
 | Remapeamento: teclas, atalhos (Ctrl+C…), multimídia, desativar | ✅ |
 | Remapeamento: botões e rolagem do mouse | 🧪 beta |
-| DKS, Mod-Tap e Toggle | 🚧 protocolo pronto, falta a tela |
+| DKS, Mod-Tap e Toggle (até 40 teclas) | ✅ |
 | RGB por tecla | 🚧 protocolo decodificado |
 | Macros | 🚧 |
 | Calibração | 🚧 |

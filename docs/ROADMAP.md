@@ -12,22 +12,21 @@ from the app. Wire details are in [`protocol.md`](protocol.md).
 | Backlight effect, colour, brightness, speed (`0x07`) | ✅ | ✅ Iluminação |
 | Actuation point, separate release, Quick Trigger (`0x21`) | ✅ | ✅ Acionamento |
 | Key remapping: keys, shortcuts, media, disable (`0x18`) | ✅ | ✅ Teclas |
-| Mod-Tap, Toggle, DKS (`0x22`) | ✅ | ❌ next |
+| Mod-Tap, Toggle, DKS (`0x22`) | ✅ | ✅ Teclas |
 
 ## Next
 
 In priority order. Each item: decode → confirm on hardware → crate module with
 tests of the captured bytes → Tauri command → UI → update `protocol.md`.
 
-1. **Advanced keys editor** in the Teclas page (crate and `set_keymap` are ready).
-2. **Macros** (`0x19`): 10 macros of 256 bytes, 5 packets each; a key points at a
+1. **Macros** (`0x19`): 10 macros of 256 bytes, 5 packets each; a key points at a
    macro through its keymap entry. Event encoding still to decode.
-3. **Calibration** (`0x21`): per key and all keys, with status replies.
-4. **Sensitivity extras** (`0x21`): rate of return, debounce, reset to factory.
-5. **Lighting extras**: per-key colour (`0x09`, decoded and confirmed), side light
+2. **Calibration** (`0x21`): per key and all keys, with status replies.
+3. **Sensitivity extras** (`0x21`): rate of return, debounce, reset to factory.
+4. **Lighting extras**: per-key colour (`0x09`, decoded and confirmed), side light
    writes (`0x08`), the six effect option bytes of `0x07`.
-6. **System** (`0x14`): Windows-key lock, sleep timer, factory reset.
-7. **Packaging**: AppImage, `.deb`, `.rpm`, install script.
+5. **System** (`0x14`): Windows-key lock, sleep timer, factory reset.
+6. **Packaging**: AppImage, `.deb`, `.rpm`, install script.
 
 ## Open questions
 

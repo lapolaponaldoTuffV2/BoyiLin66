@@ -25,9 +25,20 @@ export type MediaKey = "VolumeUp" | "VolumeDown" | "Mute" | "PlayPause" | "NextT
   | "Stop" | "MediaPlayer" | "Calculator" | "Computer" | "Email" | "Browser" | "Search"
   | "BrightnessUp" | "BrightnessDown";
 export type MouseAction = "Left" | "Right" | "Middle" | "Back" | "Forward" | "ScrollUp" | "ScrollDown";
-export type KeyAction = { kind: "disabled" } | { kind: "key"; usage: number } | { kind: "fn" }
-  | { kind: "shortcut"; modifiers: number; usage: number }
-  | { kind: "media"; key: MediaKey } | { kind: "mouse"; action: MouseAction };
+/** What advanced keys can send: a key or a shortcut. */
+export type KeyStroke = { kind: "key"; usage: number } | { kind: "shortcut"; modifiers: number; usage: number };
+/** Per DKS stage: nothing, press and release, or press and release at the next stage. */
+export type StageAction = "none" | "tap" | "hold";
+/** Distances are in 0.1 mm units. */
+export type DksPoints = { press: number; bottom: number; bottom_release: number; release: number };
+/** `stages` holds stages 1–4: press, bottom, leaving the bottom, release. */
+export type DksBinding = { key: KeyStroke; stages: StageAction[] };
+export type AdvancedKey = { type: "mod_tap"; hold: KeyStroke; tap: KeyStroke; hold_ms: number }
+  | { type: "toggle"; key: KeyStroke }
+  | { type: "dks"; points: DksPoints; bindings: (DksBinding | null)[] };
+export type KeyAction = { kind: "disabled" } | KeyStroke | { kind: "fn" }
+  | { kind: "media"; key: MediaKey } | { kind: "mouse"; action: MouseAction }
+  | { kind: "advanced"; key: AdvancedKey };
 /** 132 matrix slots, including empty positions, in row-major order. */
 export type Keymap = KeyAction[];
 

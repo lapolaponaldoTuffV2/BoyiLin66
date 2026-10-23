@@ -10,6 +10,9 @@ const paths = {
 } as const;
 export type IconName = keyof typeof paths;
 
+/** Formats a distance in 0.1 mm units. */
+export const mm = (v: number) => `${(v / 10).toFixed(1).replace(".", ",")} mm`;
+
 export function Icon({ name }: { name: IconName }) {
   return (
     <svg className="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"

@@ -170,7 +170,93 @@ test("leaving while factory data is pending cancels restore before any write", a
   expect(await page.evaluate(() => (window as any).__testDevice.calls.filter((c: any) => c.cmd === "set_keymap"))).toEqual([]);
 });
 
-for (const invalid of ["duplicate Fn", "missing Fn", "Fn in empty slot", "short map", "invalid media"]) {
+test("a saved advanced key loads marked; Mod-Tap and Toggle write the protocol JSON", async ({ page }) => {
+  await page.evaluate(() => {
+    (window as any).__testDevice.keymap[22] = { kind: "advanced", key: { type: "toggle", key: { kind: "key", usage: 4 } } };
+  });
+  await openRemap(page);
+  const esc = page.getByRole("button", { name: "Esc", exact: true });
+  await expect(esc).toHaveClass(/remapped/);
+  await expect(esc).toHaveAccessibleDescription("↦ Toggle: A");
+  await esc.click();
+  await expect(page.getByLabel("Tipo de ação")).toHaveValue("toggle");
+  await expect(page.getByRole("group", { name: "Ação mantida" }).getByLabel("Tecla", { exact: true })).toHaveValue("4");
+
+  await page.getByRole("button", { name: "Caps", exact: true }).click();
+  await page.getByLabel("Tipo de ação").selectOption("mod_tap");
+  await expect(page.getByText("Teclas avançadas no mapa: 2 de 40.")).toBeVisible();
+  const hold = page.getByRole("group", { name: "Ao segurar" });
+  await expect(hold.getByLabel("Tecla", { exact: true })).toHaveValue("224");
+  await hold.getByLabel("Envia").selectOption("shortcut");
+  await hold.getByRole("checkbox", { name: "Shift esquerdo", exact: true }).check();
+  await hold.getByLabel("Tecla", { exact: true }).selectOption("29");
+  await page.getByLabel("Tempo para segurar").fill("300");
+  await expect(page.getByText("300 ms", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Aplicar", exact: true }).click();
+  await expect(page.getByText("Mapa aplicado e cópia local salva.")).toBeVisible();
+  expect(await page.evaluate(() => (window as any).__testDevice.keymap[66])).toEqual({ kind: "advanced", key: {
+    type: "mod_tap", tap: { kind: "key", usage: 0x39 }, hold: { kind: "shortcut", modifiers: 3, usage: 29 }, hold_ms: 300,
+  } });
+  // Saved advanced keys compare equal to the draft, so leaving asks nothing.
+  await page.getByRole("button", { name: "Iluminação", exact: true }).click();
+  await expect(page.getByRole("radio", { name: "Estático", exact: true })).toBeChecked();
+});
+
+test("DKS edits points and up to four actions, and blocks invalid stages", async ({ page }, testInfo) => {
+  await openRemap(page);
+  await page.getByRole("button", { name: "Caps", exact: true }).click();
+  await page.getByLabel("Tipo de ação").selectOption("dks");
+  const first = page.getByRole("group", { name: "Ação 1" });
+  await expect(first.getByLabel("1 · Pressionar")).toHaveValue("tap");
+  await expect(first.getByLabel("1 · Pressionar").locator('option[value="hold"]')).toHaveCount(1);
+  await expect(first.getByLabel("4 · Soltar").locator('option[value="hold"]')).toHaveCount(0);
+
+  const points = page.getByRole("group", { name: "Ponto de cada etapa" });
+  await points.getByLabel("1 · Pressionar").fill("36");
+  await expect(page.getByRole("alert")).toContainText("acima dos pontos de fundo");
+  await expect(page.getByRole("button", { name: "Aplicar", exact: true })).toBeDisabled();
+  await points.getByLabel("1 · Pressionar").fill("20");
+  await expect(page.getByRole("alert")).toHaveCount(0);
+
+  await first.getByLabel("1 · Pressionar").selectOption("none");
+  await expect(page.getByRole("alert")).toContainText("pelo menos uma ação");
+  for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "Adicionar ação" }).click();
+  await expect(page.getByRole("button", { name: "Adicionar ação" })).toHaveCount(0);
+  await page.setViewportSize({ width: 960, height: 640 });
+  expect(await page.locator(".content").evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+  await page.setViewportSize({ width: 1180, height: 2400 });
+  await page.locator(".panel").nth(1).screenshot({ path: testInfo.outputPath("dks.png") });
+  await page.getByRole("button", { name: "Remover ação 1" }).click();
+  await page.getByRole("button", { name: "Remover ação 3" }).click();
+  await page.getByRole("button", { name: "Remover ação 4" }).click();
+  const second = page.getByRole("group", { name: "Ação 2" });
+  await second.getByLabel("Tecla", { exact: true }).selectOption("5");
+  await second.getByLabel("2 · Fundo").selectOption("hold");
+  await page.getByRole("button", { name: "Aplicar", exact: true }).click();
+  await expect(page.getByText("Mapa aplicado e cópia local salva.")).toBeVisible();
+  expect(await page.evaluate(() => (window as any).__testDevice.keymap[66])).toEqual({ kind: "advanced", key: {
+    type: "dks", points: { press: 20, bottom: 36, bottom_release: 36, release: 15 },
+    bindings: [null, { key: { kind: "key", usage: 5 }, stages: ["tap", "hold", "none", "none"] }, null, null],
+  } });
+  await expect(page.getByRole("button", { name: "Caps", exact: true })).toHaveAccessibleDescription("↦ DKS: B");
+});
+
+test("advanced types are disabled once all 40 slots are used", async ({ page }) => {
+  await page.evaluate(() => {
+    const map = (window as any).__testDevice.keymap;
+    map.flatMap((action: any, i: number) => action.kind === "key" && i !== 66 ? [i] : []).slice(0, 40)
+      .forEach((i: number) => { map[i] = { kind: "advanced", key: { type: "toggle", key: { kind: "key", usage: 4 } } }; });
+  });
+  await openRemap(page);
+  await page.getByRole("button", { name: "Caps", exact: true }).click();
+  await expect(page.getByText("Teclas avançadas no mapa: 40 de 40.")).toBeVisible();
+  for (const type of ["mod_tap", "toggle", "dks"]) {
+    await expect(page.getByLabel("Tipo de ação").locator(`option[value="${type}"]`)).toHaveAttribute("disabled");
+  }
+});
+
+for (const invalid of ["duplicate Fn", "missing Fn", "Fn in empty slot", "short map", "invalid media",
+  "41 advanced keys", "DKS hold at release"]) {
   test(`invalid local copy is blocked and can be restored: ${invalid}`, async ({ page }) => {
     await page.evaluate((kind) => {
       const map = (window as any).__testDevice.keymap;
@@ -179,6 +265,11 @@ for (const invalid of ["duplicate Fn", "missing Fn", "Fn in empty slot", "short 
       if (kind === "Fn in empty slot") map[0] = { kind: "fn" };
       if (kind === "short map") map.pop();
       if (kind === "invalid media") map[22] = { kind: "media", key: "toString" };
+      if (kind === "41 advanced keys") map.flatMap((action: any, i: number) => action.kind === "key" ? [i] : []).slice(0, 41)
+        .forEach((i: number) => { map[i] = { kind: "advanced", key: { type: "toggle", key: { kind: "key", usage: 4 } } }; });
+      if (kind === "DKS hold at release") map[22] = { kind: "advanced", key: { type: "dks",
+        points: { press: 15, bottom: 36, bottom_release: 36, release: 15 },
+        bindings: [{ key: { kind: "key", usage: 4 }, stages: ["none", "none", "none", "hold"] }, null, null, null] } };
     }, invalid);
     await page.getByRole("button", { name: "Teclas", exact: true }).click();
     await expect(page.getByRole("alert")).toBeVisible();

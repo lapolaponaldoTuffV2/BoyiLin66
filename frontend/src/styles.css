@@ -455,6 +455,9 @@ input[type="range"] {
   display: grid;
   gap: 6px;
 }
+.remap-fields p {
+  margin: 0;
+}
 select {
   width: 100%;
   min-height: 36px;
@@ -484,4 +487,24 @@ select {
   * {
     transition: none !important;
   }
+}
+.stroke-group {
+  display: grid;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.stroke-group > legend {
+  padding: 0 4px;
+}
+.stroke-group > label,
+.dks-stages label {
+  display: grid;
+  gap: 6px;
+}
+.dks-stages {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
 }

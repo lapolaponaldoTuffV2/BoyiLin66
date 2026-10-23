@@ -540,4 +540,54 @@ mod tests {
         assert!(json.contains(r#"{"kind":"advanced","key":{"type":"dks","points":{"press":15"#));
         assert_eq!(serde_json::from_str::<Keymap>(&json).unwrap(), map);
     }
+
+    /// The advanced keys the frontend tests expect `set_keymap` to receive.
+    #[test]
+    fn parses_frontend_advanced_keys() {
+        use StageAction::{Hold, None as N, Tap};
+        let parse = |json| match serde_json::from_str::<KeyAction>(json).unwrap() {
+            KeyAction::Advanced { key } => key,
+            other => panic!("not advanced: {other:?}"),
+        };
+        assert_eq!(
+            parse(
+                r#"{"kind":"advanced","key":{"type":"mod_tap","tap":{"kind":"key","usage":57},
+                "hold":{"kind":"shortcut","modifiers":3,"usage":29},"hold_ms":300}}"#
+            ),
+            AdvancedKey::ModTap {
+                tap: KeyStroke::Key { usage: 0x39 },
+                hold: KeyStroke::Shortcut {
+                    modifiers: 3,
+                    usage: 29
+                },
+                hold_ms: 300,
+            }
+        );
+        assert_eq!(
+            parse(r#"{"kind":"advanced","key":{"type":"toggle","key":{"kind":"key","usage":4}}}"#),
+            AdvancedKey::Toggle { key: A }
+        );
+        assert_eq!(
+            parse(
+                r#"{"kind":"advanced","key":{"type":"dks",
+                "points":{"press":20,"bottom":36,"bottom_release":36,"release":15},
+                "bindings":[null,{"key":{"kind":"key","usage":5},"stages":["tap","hold","none","none"]},null,null]}}"#
+            ),
+            AdvancedKey::Dks {
+                points: DksPoints {
+                    press: 20,
+                    ..DksPoints::DEFAULT
+                },
+                bindings: [
+                    None,
+                    Some(DksBinding {
+                        key: B,
+                        stages: [Tap, Hold, N, N],
+                    }),
+                    None,
+                    None,
+                ],
+            }
+        );
+    }
 }
