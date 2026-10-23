@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { api, DeviceInfo, Key } from "./api";
 import { Lighting } from "./Lighting";
 import { Trigger } from "./Trigger";
+import { Remap } from "./Remap";
 import { Icon, IconName } from "./ui";
 
-type View = "lighting" | "trigger";
+type View = "lighting" | "trigger" | "keys";
 const VIEWS: { id: View; label: string; icon: IconName }[] = [
   { id: "lighting", label: "Iluminação", icon: "light" },
   { id: "trigger", label: "Acionamento", icon: "gauge" },
+  { id: "keys", label: "Teclas", icon: "keyboard" },
 ];
 
 export default function App() {
@@ -17,10 +19,13 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(true);
   const [session, setSession] = useState(0);
+  const [remapDirty, setRemapDirty] = useState(false);
   const request = useRef(0);
   const reportError = (e: unknown) => setError(e == null ? null : String(e));
+  const canLeave = () => !remapDirty || window.confirm("Descartar as alterações locais do mapa que ainda não foram aplicadas?");
 
   const connect = async () => {
+    if (!canLeave()) return;
     const id = ++request.current;
     setConnecting(true);
     setError(null);
@@ -57,7 +62,9 @@ export default function App() {
         <nav aria-label="Configurações do teclado">
           {VIEWS.map((v) => (
             <button key={v.id} type="button" className={`nav-item ${view === v.id ? "active" : ""}`}
-              aria-current={view === v.id ? "page" : undefined} onClick={() => setView(v.id)}>
+              aria-current={view === v.id ? "page" : undefined} onClick={() => {
+                if (view === v.id || canLeave()) setView(v.id);
+              }}>
               <Icon name={v.icon} /> {v.label}
             </button>
           ))}
@@ -91,7 +98,8 @@ export default function App() {
         ) : keys.length > 0 && (
           view === "lighting"
             ? <Lighting key={session} keys={keys} onError={reportError} />
-            : <Trigger key={session} keys={keys} onError={reportError} />
+            : view === "trigger" ? <Trigger key={session} keys={keys} onError={reportError} />
+              : <Remap key={session} keys={keys} onError={reportError} onDirtyChange={setRemapDirty} />
         )}
       </main>
     </div>
