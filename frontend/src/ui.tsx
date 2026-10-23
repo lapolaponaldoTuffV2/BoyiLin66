@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ReactNode, useId } from "react";
 
 const paths = {
   light: "M9 18h6m-5 3h4M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3Z",
@@ -40,13 +40,15 @@ export function Slider({ label, value, min, max, step = 1, format, onChange }: {
   format?: (v: number) => string;
   onChange: (v: number) => void;
 }) {
+  const id = useId();
   return (
-    <label className="slider">
+    <label className="slider" htmlFor={id}>
       <span className="slider-label">
-        {label}
-        <output>{format ? format(value) : value}</output>
+        <span id={`${id}-label`}>{label}</span>
+        <output htmlFor={id}>{format ? format(value) : value}</output>
       </span>
-      <input type="range" min={min} max={max} step={step} value={value}
+      <input id={id} type="range" min={min} max={max} step={step} value={value}
+        aria-labelledby={`${id}-label`} aria-valuetext={format?.(value)}
         onChange={(e) => onChange(Number(e.target.value))} />
     </label>
   );
@@ -58,13 +60,15 @@ export function Toggle({ label, hint, checked, onChange }: {
   checked: boolean;
   onChange: (v: boolean) => void;
 }) {
+  const id = useId();
   return (
     <label className="toggle">
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <input type="checkbox" checked={checked} aria-labelledby={`${id}-label`}
+        aria-describedby={hint ? `${id}-hint` : undefined} onChange={(e) => onChange(e.target.checked)} />
       <span className="toggle-track" aria-hidden="true" />
       <span>
-        {label}
-        {hint && <small>{hint}</small>}
+        <span id={`${id}-label`}>{label}</span>
+        {hint && <small id={`${id}-hint`}>{hint}</small>}
       </span>
     </label>
   );
