@@ -7,6 +7,7 @@ const paths = {
   info: "M12 11v6m0-10h.01m10 5a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z",
   refresh: "M20 8a9 9 0 0 0-15-3L2 8m0-5v5h5m-3 8a9 9 0 0 0 15 3l3-3m0 5v-5h-5",
   check: "m5 12 4 4L19 6",
+  power: "M12 3v8M6.4 6.6a8 8 0 1 0 11.2 0",
 } as const;
 export type IconName = keyof typeof paths;
 

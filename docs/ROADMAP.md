@@ -16,6 +16,7 @@ from the app. Wire details are in [`protocol.md`](protocol.md).
 | Macros: key steps with pauses, four playback modes (`0x19`) | ✅ | ✅ Teclas |
 | Per-key colour for the Custom effect (`0x09`) | ✅ | ✅ Iluminação |
 | Per-key calibration (`0x21` subs `02`, `07`) | ✅ | ✅ Acionamento |
+| Sleep timers, what Win lock blocks (`0x14`) | sleep read ✅, writes 🧪 | 🧪 Sistema |
 | Side light effect, colour, brightness, speed (`0x08`) | read ✅, write 🧪 | 🧪 Iluminação |
 | Debounce, report rate, factory sensitivity reset (`0x21` subs `0A`, `09`, `06`) | reads ✅, writes 🧪 | 🧪 Acionamento |
 
@@ -25,7 +26,7 @@ In priority order. Each item: decode → confirm on hardware → crate module wi
 tests of the captured bytes → Tauri command → UI → update `protocol.md`.
 
 1. **Lighting extras**: the six effect option bytes of `0x07`.
-2. **System** (`0x14`): Windows-key lock, sleep timer, factory reset.
+2. **Factory reset** (`0x14`): decoded, to be tested with the owner present.
 3. **Packaging**: AppImage, `.deb`, `.rpm`, install script.
 
 ## Open questions

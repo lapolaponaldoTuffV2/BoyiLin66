@@ -9,7 +9,7 @@ Start with [`docs/ROADMAP.md`](docs/ROADMAP.md) (what is done and what is next) 
 ## Layout
 
 - `crates/boyi-protocol` — protocol and hidraw access. No Tauri; std + serde + thiserror only
-  (serde_json for tests). One module per feature: `led`, `magnetic`, `keymap`, `advanced`, `macros`,
+  (serde_json for tests). One module per feature: `led`, `magnetic`, `keymap`, `advanced`, `macros`, `system`,
   `layout` (66 keys, matrix positions, default HID usages), `frame`, `device` (`Keyboard`).
 - `crates/boyi-protocol/examples` — `info` (read-only status), `restore_keymap` (factory layout).
 - `src-tauri` — thin Tauri commands over the crate. The keyboard cannot report its keymap, so

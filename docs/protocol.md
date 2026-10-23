@@ -206,10 +206,19 @@ first and last stages.
 
 ### `0x14` System
 
-Payload starts with a sub-command: `01` factory reset, `02` Windows-key lock,
-`03` sleep timer. All **unconfirmed**.
+Byte 2 selects the operation and byte 5 declares length 1, but the data sits
+at fixed frame offsets past it. Replies declare length 0.
+
+| Frame | Meaning |
+|---|---|
+| `01 14 02 00 00 01 00` | Read the sleep timers. Reply bytes 9–10: light timeout, 11–12: keyboard timeout (seconds, big-endian), 13: never sleep (`1`) |
+| `01 14 01 00 00 01 00 00 00 L L K K n` | Write the sleep timers, same layout. The official software keeps the keyboard timeout at 300–60000 s and the light timeout no longer. **Unconfirmed** |
+| `01 14 00 00 00 01 00`, bytes 13–16 | What Win lock blocks: Shift+Tab, Alt+Tab, the Windows key, Alt+F4 (`1` = blocked). No read exists. **Unconfirmed** |
+| `01 14 00 00 00 01 01` | Factory reset, **unconfirmed** and deliberately not implemented |
+
+Byte 6 separates the last two: never send a `01` there by accident.
 
 ## Not covered yet
 
-All-keys calibration, Win-lock and sleep timer, confirmed side light writes, the Fn layer. Firmware updates are
+All-keys calibration, factory reset, the Fn layer. Firmware updates are
 deliberately out of scope.

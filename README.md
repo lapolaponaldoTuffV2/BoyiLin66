@@ -33,7 +33,7 @@ próprio teclado.
 | Calibração por tecla | ✅ |
 | Anti-repique, taxa de relatório (1–8 kHz), restaurar sensibilidade | 🧪 beta |
 | Luz lateral | 🧪 beta |
-| Trava do Win, tempo de repouso | 🚧 |
+| Trava do Win (o que bloquear), tempo de repouso | 🧪 beta |
 
 O teclado não informa o próprio mapa de teclas, então o app guarda uma cópia
 do último mapa gravado. Veja o [roadmap](docs/ROADMAP.md) para os detalhes.

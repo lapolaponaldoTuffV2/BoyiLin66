@@ -3,13 +3,15 @@ import { api, DeviceInfo, Key } from "./api";
 import { Lighting } from "./Lighting";
 import { Trigger } from "./Trigger";
 import { Remap } from "./Remap";
+import { System } from "./System";
 import { Icon, IconName } from "./ui";
 
-type View = "lighting" | "trigger" | "keys";
+type View = "lighting" | "trigger" | "keys" | "system";
 const VIEWS: { id: View; label: string; icon: IconName }[] = [
   { id: "lighting", label: "Iluminação", icon: "light" },
   { id: "trigger", label: "Acionamento", icon: "gauge" },
   { id: "keys", label: "Teclas", icon: "keyboard" },
+  { id: "system", label: "Sistema", icon: "power" },
 ];
 
 export default function App() {
@@ -99,7 +101,8 @@ export default function App() {
           view === "lighting"
             ? <Lighting key={session} keys={keys} onError={reportError} />
             : view === "trigger" ? <Trigger key={session} keys={keys} onError={reportError} />
-              : <Remap key={session} keys={keys} onError={reportError} onDirtyChange={setRemapDirty} />
+              : view === "system" ? <System key={session} onError={reportError} />
+                : <Remap key={session} keys={keys} onError={reportError} onDirtyChange={setRemapDirty} />
         )}
       </main>
     </div>

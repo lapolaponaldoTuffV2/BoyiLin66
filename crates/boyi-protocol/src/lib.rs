@@ -23,6 +23,7 @@ pub mod layout;
 pub mod led;
 pub mod macros;
 pub mod magnetic;
+pub mod system;
 
 pub use device::Keyboard;
 pub use frame::Frame;

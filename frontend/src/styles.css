@@ -454,15 +454,13 @@ input[type="range"] {
   gap: 16px;
   max-width: 560px;
 }
-.remap-fields > label {
+/* Plain labels stack their caption over the control; toggles, sliders and colour fields keep their own layout. */
+.remap-fields > label:not([class]) {
   display: grid;
   gap: 6px;
 }
 .remap-fields p {
   margin: 0;
-}
-.remap-fields > .color-field {
-  display: flex;
 }
 select {
   width: 100%;

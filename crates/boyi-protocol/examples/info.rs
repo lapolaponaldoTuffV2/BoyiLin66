@@ -14,6 +14,7 @@ fn main() -> boyi_protocol::Result<()> {
     println!("serial   {}", info.serial);
     println!("lighting {:?}", kb.led()?);
     println!("side     {:?}", kb.side_light()?);
+    println!("sleep    {:?}", kb.sleep()?);
     let perf = kb.performance()?;
     println!(
         "timing   debounce {}  report rate {} kHz",

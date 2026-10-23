@@ -12,6 +12,7 @@ use crate::keymap::{self, Keymap};
 use crate::layout::KeyPos;
 use crate::led::{self, KeyColors, LedConfig, SideLight};
 use crate::magnetic::{self, KeyTrigger, Performance, TriggerSettings};
+use crate::system::{self, Sleep, WinLock};
 use crate::{Error, Result};
 
 pub const VENDOR_ID: u16 = 0x0416;
@@ -145,6 +146,33 @@ impl Keyboard {
             });
         }
         Ok(now)
+    }
+
+    pub fn sleep(&self) -> Result<Sleep> {
+        Ok(system::parse_sleep(
+            &self.request(&system::sleep_read_frame(), 0)?,
+        ))
+    }
+
+    /// Writes the sleep timers, then reads them back and fails if they did
+    /// not take. Not confirmed on hardware yet.
+    pub fn set_sleep(&self, s: &Sleep) -> Result<Sleep> {
+        self.send(&system::sleep_write_frame(s)?)?;
+        std::thread::sleep(Duration::from_millis(50));
+        let now = self.sleep()?;
+        if now != *s {
+            return Err(Error::BadReply {
+                cmd: system::CMD,
+                reason: "keyboard kept the old sleep timers",
+            });
+        }
+        Ok(now)
+    }
+
+    /// Sets what Win lock blocks. The keyboard cannot report it back. Not
+    /// confirmed on hardware yet.
+    pub fn set_win_lock(&self, w: &WinLock) -> Result<()> {
+        self.send(&system::win_lock_frame(w))
     }
 
     /// Writes the Custom effect's colours; select the Custom effect with
