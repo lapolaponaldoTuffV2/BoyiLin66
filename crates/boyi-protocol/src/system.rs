@@ -1,4 +1,4 @@
-//! System settings (command `0x14`): sleep timers and what Win lock blocks.
+//! System settings (command `0x14`): sleep timers.
 //!
 //! Byte 2 selects the operation. The data sits at fixed frame offsets past
 //! a declared length of 1, and replies declare length 0, so frames are read
@@ -10,13 +10,10 @@ use crate::frame::Frame;
 use crate::{Error, Result};
 
 pub const CMD: u8 = 0x14;
-const OP_WIN_LOCK: u8 = 0;
 const OP_WRITE_SLEEP: u8 = 1;
 const OP_READ_SLEEP: u8 = 2;
 /// Frame offset of the sleep fields: light (u16 BE), keyboard (u16 BE), never.
 const SLEEP_AT: usize = 9;
-/// Frame offset of the Win-lock flags.
-const WIN_LOCK_AT: usize = 13;
 
 /// The official software's limits: the keyboard sleeps after 5–1000 minutes.
 pub const MIN_KEYBOARD_SLEEP_S: u16 = 300;
@@ -29,15 +26,6 @@ pub struct Sleep {
     pub keyboard_s: u16,
     /// Never sleep.
     pub never: bool,
-}
-
-/// What stays blocked while Win lock is on. The keyboard cannot report it.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct WinLock {
-    pub windows: bool,
-    pub shift_tab: bool,
-    pub alt_tab: bool,
-    pub alt_f4: bool,
 }
 
 pub(crate) fn sleep_read_frame() -> Frame {
@@ -67,18 +55,6 @@ pub(crate) fn sleep_write_frame(s: &Sleep) -> Result<Frame> {
     let [kh, kl] = s.keyboard_s.to_be_bytes();
     f.0[SLEEP_AT..SLEEP_AT + 5].copy_from_slice(&[lh, ll, kh, kl, s.never.into()]);
     Ok(f)
-}
-
-/// Byte 6 stays `0`: with operation 0, a `1` there is the factory reset.
-pub(crate) fn win_lock_frame(w: &WinLock) -> Frame {
-    let mut f = Frame::new(CMD, OP_WIN_LOCK, 1, &[0]);
-    f.0[WIN_LOCK_AT..WIN_LOCK_AT + 4].copy_from_slice(&[
-        w.shift_tab.into(),
-        w.alt_tab.into(),
-        w.windows.into(),
-        w.alt_f4.into(),
-    ]);
-    f
 }
 
 #[cfg(test)]
@@ -124,19 +100,5 @@ mod tests {
             .is_err()
         };
         assert!(bad(0, 299) && bad(0, 60_001) && bad(400, 300) && !bad(300, 300));
-    }
-
-    #[test]
-    fn win_lock_never_sends_the_factory_reset() {
-        let f = win_lock_frame(&WinLock {
-            windows: true,
-            shift_tab: false,
-            alt_tab: true,
-            alt_f4: true,
-        });
-        assert_eq!(&f.0[..7], &[0x01, 0x14, 0x00, 0, 0, 0x01, 0x00]);
-        assert!(f.0[7..13].iter().all(|&b| b == 0));
-        assert_eq!(&f.0[13..17], &[0, 1, 1, 1]);
-        assert!(f.0[17..].iter().all(|&b| b == 0));
     }
 }

@@ -1,11 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { api, Sleep, WinLock } from "./api";
+import { api, Sleep } from "./api";
 import { Icon, Panel, Toggle } from "./ui";
-
-const WIN_LOCK: { key: keyof WinLock; label: string }[] = [
-  { key: "windows", label: "Tecla Windows" }, { key: "alt_tab", label: "Alt + Tab" },
-  { key: "shift_tab", label: "Shift + Tab" }, { key: "alt_f4", label: "Alt + F4" },
-];
 
 /** Same limits as the keyboard: it sleeps after 5–1000 minutes, the light no later than the keyboard. */
 export function sleepProblem(s: Sleep): string | null {
@@ -16,7 +11,6 @@ export function sleepProblem(s: Sleep): string | null {
 
 export function System({ onError }: { onError: (e: unknown) => void }) {
   const [sleep, setSleep] = useState<Sleep | null>(null);
-  const [winLock, setWinLock] = useState<WinLock | null>(null);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("Lendo sistema…");
   const request = useRef(0);
@@ -40,12 +34,8 @@ export function System({ onError }: { onError: (e: unknown) => void }) {
       if (call === request.current) setBusy(false);
     }
   };
-  const load = () => run("Lendo sistema…", "Repouso lido do teclado; trava do Win da cópia local.",
-    "Não foi possível ler o sistema. Tente novamente.", async () => {
-      const [s, w] = await Promise.all([api.getSleep(), api.getWinLock()]);
-      setSleep(s);
-      setWinLock(w);
-    });
+  const load = () => run("Lendo sistema…", "Repouso lido do teclado.",
+    "Não foi possível ler o sistema. Tente novamente.", async () => setSleep(await api.getSleep()));
   useEffect(() => {
     void load();
     return () => { request.current++; };
@@ -53,14 +43,12 @@ export function System({ onError }: { onError: (e: unknown) => void }) {
 
   const applySleep = () => sleep && !problem && run("Aplicando repouso…", "Repouso aplicado e conferido no teclado.",
     "Não foi possível aplicar o repouso.", async () => setSleep(await api.setSleep(sleep)));
-  const applyWinLock = () => winLock && run("Aplicando trava do Win…", "Trava do Win aplicada e cópia local salva.",
-    "Não foi possível aplicar a trava do Win. O teclado pode não ter mudado.", () => api.setWinLock(winLock));
   const number = (value: string, scale: number) => Math.round(Number(value) * scale) || 0;
 
   return (
     <div className="page">
       <p className="muted" role="status">{status}</p>
-      {(!sleep || !winLock) && !busy && <button type="button" className="ghost read-button" onClick={load}>Tentar novamente</button>}
+      {!sleep && !busy && <button type="button" className="ghost read-button" onClick={load}>Tentar novamente</button>}
       {sleep && <Panel title="Repouso" actions={
         <button type="button" className="primary" aria-label="Aplicar repouso" disabled={busy || !!problem} onClick={applySleep}>
           <Icon name="check" /> Aplicar
@@ -81,19 +69,6 @@ export function System({ onError }: { onError: (e: unknown) => void }) {
           </>}
         </fieldset>
         {problem && <p className="notice" role="alert">{problem}</p>}
-      </Panel>}
-      {winLock && <Panel title="Trava do Win" actions={
-        <button type="button" className="primary" aria-label="Aplicar trava do Win" disabled={busy} onClick={applyWinLock}>
-          <Icon name="check" /> Aplicar
-        </button>
-      }>
-        <fieldset className="remap-fields" disabled={busy} aria-label="Trava do Win">
-          <p className="notice"><strong className="badge">beta</strong> Gravação ainda não confirmada no teclado. O teclado
-            não informa estas opções: esta é a última cópia salva pelo app.</p>
-          <p className="muted">Com a trava do Win ligada (pelo atalho do teclado), bloquear:</p>
-          {WIN_LOCK.map(({ key, label }) => <Toggle key={key} label={label} checked={winLock[key]}
-            onChange={(checked) => setWinLock({ ...winLock, [key]: checked })} />)}
-        </fieldset>
       </Panel>}
     </div>
   );

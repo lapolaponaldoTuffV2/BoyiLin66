@@ -12,7 +12,7 @@ use crate::keymap::{self, Keymap};
 use crate::layout::KeyPos;
 use crate::led::{self, KeyColors, LedConfig};
 use crate::magnetic::{self, KeyTrigger, Performance, TriggerSettings};
-use crate::system::{self, Sleep, WinLock};
+use crate::system::{self, Sleep};
 use crate::{Error, Result};
 
 pub const VENDOR_ID: u16 = 0x0416;
@@ -148,12 +148,6 @@ impl Keyboard {
             });
         }
         Ok(now)
-    }
-
-    /// Sets what Win lock blocks. The keyboard cannot report it back. Not
-    /// confirmed on hardware yet.
-    pub fn set_win_lock(&self, w: &WinLock) -> Result<()> {
-        self.send(&system::win_lock_frame(w))
     }
 
     /// Writes the Custom effect's colours; select the Custom effect with

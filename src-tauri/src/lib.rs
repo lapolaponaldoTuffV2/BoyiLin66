@@ -10,7 +10,7 @@ use boyi_protocol::keymap::Keymap;
 use boyi_protocol::layout::{self, Key, KeyPos};
 use boyi_protocol::led::{KeyColors, LedConfig};
 use boyi_protocol::magnetic::{KeyTrigger, Performance, TriggerSettings};
-use boyi_protocol::system::{Sleep, WinLock};
+use boyi_protocol::system::Sleep;
 use boyi_protocol::{device::DeviceInfo, Keyboard};
 use serde::{de::DeserializeOwned, Serialize};
 use tauri::{Manager, State};
@@ -33,8 +33,8 @@ impl Connection {
     }
 }
 
-/// The keyboard cannot report its key assignments, per-key colours or Win-lock
-/// options, so the last ones written are kept in the app data dir.
+/// The keyboard cannot report its key assignments or per-key colours, so the
+/// last ones written are kept in the app data dir.
 struct SavedCopy<T>(PathBuf, PhantomData<T>);
 
 impl<T: Serialize + DeserializeOwned + Default> SavedCopy<T> {
@@ -179,21 +179,6 @@ fn set_sleep(conn: State<Connection>, sleep: Sleep) -> Result<Sleep, String> {
     conn.with(|kb| kb.set_sleep(&sleep))
 }
 
-/// The last Win-lock options this app wrote, or nothing blocked.
-#[tauri::command]
-fn get_win_lock(file: State<SavedCopy<WinLock>>) -> Result<WinLock, String> {
-    file.load()
-}
-
-#[tauri::command]
-fn set_win_lock(
-    conn: State<Connection>,
-    file: State<SavedCopy<WinLock>>,
-    win_lock: WinLock,
-) -> Result<(), String> {
-    file.write_and_save(&conn, &win_lock, |kb| kb.set_win_lock(&win_lock))
-}
-
 /// The last Custom-effect colours this app wrote, or all white.
 #[tauri::command]
 fn get_key_colors(file: State<SavedCopy<KeyColors>>) -> Result<KeyColors, String> {
@@ -217,7 +202,6 @@ pub fn run() {
             let dir = app.path().app_data_dir()?;
             app.manage(SavedCopy::<Keymap>::new(dir.join("keymap.json")));
             app.manage(SavedCopy::<KeyColors>::new(dir.join("key_colors.json")));
-            app.manage(SavedCopy::<WinLock>::new(dir.join("win_lock.json")));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -237,9 +221,7 @@ pub fn run() {
             get_key_colors,
             set_key_colors,
             get_sleep,
-            set_sleep,
-            get_win_lock,
-            set_win_lock
+            set_sleep
         ])
         .run(tauri::generate_context!())
         .expect("failed to start BoyiLin66");

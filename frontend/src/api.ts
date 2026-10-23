@@ -13,8 +13,6 @@ export type LedMode = (typeof LED_MODES)[number];
 export type LedConfig = { mode: LedMode; brightness: number; speed: number; color: [number, number, number]; options: number[] };
 /** Seconds; `never` turns sleep off. */
 export type Sleep = { light_s: number; keyboard_s: number; never: boolean };
-/** What stays blocked while Win lock is on. The keyboard cannot report it. */
-export type WinLock = { windows: boolean; shift_tab: boolean; alt_tab: boolean; alt_f4: boolean };
 /** Custom-effect colours: 132 matrix slots, including empty positions, in row-major order. */
 export type KeyColors = [number, number, number][];
 
@@ -63,8 +61,6 @@ export const api = {
   setLed: (config: LedConfig) => invoke<LedConfig>("set_led", { config }),
   getSleep: () => invoke<Sleep>("get_sleep"),
   setSleep: (sleep: Sleep) => invoke<Sleep>("set_sleep", { sleep }),
-  getWinLock: () => invoke<WinLock>("get_win_lock"),
-  setWinLock: (winLock: WinLock) => invoke<void>("set_win_lock", { winLock }),
   getKeyColors: () => invoke<KeyColors>("get_key_colors"),
   setKeyColors: (colors: KeyColors) => invoke<void>("set_key_colors", { colors }),
   getKeyTrigger: (key: KeyPos) => invoke<TriggerSettings>("get_key_trigger", { key }),

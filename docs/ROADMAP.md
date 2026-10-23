@@ -17,7 +17,7 @@ from the app. Wire details are in [`protocol.md`](protocol.md).
 | Per-key colour for the Custom effect (`0x09`) | ✅ | ✅ Iluminação |
 | Per-key calibration (`0x21` subs `02`, `07`) | ✅ | ✅ Acionamento |
 | Packaging: AppImage + `install.sh`, `.deb`/`.rpm` with the udev rule applied on install | ✅ | — |
-| Sleep timers, what Win lock blocks (`0x14`) | sleep read ✅, writes 🧪 | 🧪 Sistema |
+| Sleep timers (`0x14`) | read ✅, write 🧪 | 🧪 Sistema |
 | Debounce, report rate, factory sensitivity reset (`0x21` subs `0A`, `09`, `06`) | reads ✅, writes 🧪 | 🧪 Acionamento |
 
 ## Next

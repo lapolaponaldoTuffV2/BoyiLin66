@@ -33,17 +33,6 @@ test("never sleeping hides the timers and skips their limits", async ({ page }) 
   expect(await page.evaluate(() => (window as any).__testDevice.sleep.never)).toBe(true);
 });
 
-test("Win lock options come from the local copy and are written together", async ({ page }) => {
-  await open(page);
-  await expect(page.getByText("esta é a última cópia salva pelo app", { exact: false })).toBeVisible();
-  await page.getByRole("checkbox", { name: "Tecla Windows" }).press("Space");
-  await page.getByRole("checkbox", { name: "Alt + F4" }).press("Space");
-  await page.getByRole("button", { name: "Aplicar trava do Win" }).click();
-  await expect(page.getByText("Trava do Win aplicada e cópia local salva.")).toBeVisible();
-  expect(await page.evaluate(() => (window as any).__testDevice.winLock))
-    .toEqual({ windows: true, shift_tab: false, alt_tab: false, alt_f4: true });
-});
-
 test("a failed read can be retried", async ({ page }) => {
   await open(page, "?fail=get_sleep");
   await expect(page.getByText("Não foi possível ler o sistema.", { exact: false })).toBeVisible();
