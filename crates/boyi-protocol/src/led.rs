@@ -1,4 +1,5 @@
-//! Main keyboard backlight (command `0x07`).
+//! Main keyboard backlight (command `0x07`) and the per-key colours of the
+//! Custom effect (command `0x09`).
 //!
 //! Payload: `mode, brightness, speed, r, g, b, <6 effect bytes>`.
 //! The meaning of the six effect bytes is not known yet; writes send zeros.
@@ -6,6 +7,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::frame::Frame;
+use crate::layout::{KeyPos, SLOTS};
 use crate::{Error, Result};
 
 pub const CMD: u8 = 0x07;
@@ -91,6 +93,71 @@ pub struct LedConfig {
     pub brightness: u8,
     pub speed: u8,
     pub color: [u8; 3],
+}
+
+/// Colours for the Custom effect: one RGB per matrix slot, row-major.
+///
+/// The keyboard cannot report them back, so callers keep their own copy.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(try_from = "Vec<[u8; 3]>", into = "Vec<[u8; 3]>")]
+pub struct KeyColors(Vec<[u8; 3]>);
+
+impl KeyColors {
+    pub const CMD: u8 = 0x09;
+    const PER_PACKET: usize = 18;
+
+    /// Every key the same colour.
+    pub fn uniform(color: [u8; 3]) -> Self {
+        Self(vec![color; SLOTS])
+    }
+
+    pub fn set(&mut self, pos: KeyPos, color: [u8; 3]) -> Result<()> {
+        if !pos.in_matrix() {
+            return Err(Error::OutOfRange("key position"));
+        }
+        self.0[pos.index()] = color;
+        Ok(())
+    }
+
+    /// Eight packets of 18 slots (the last has 6) for custom slot 0. The
+    /// keyboard does not answer them.
+    pub(crate) fn frames(&self) -> Vec<Frame> {
+        self.0
+            .chunks(Self::PER_PACKET)
+            .enumerate()
+            .map(|(index, chunk)| {
+                let payload: Vec<u8> = chunk.iter().flatten().copied().collect();
+                Frame::new(Self::CMD, 0, payload.len() as u8, &payload).with_index(index as u8)
+            })
+            .collect()
+    }
+}
+
+/// White, until the app has written colours of its own.
+impl Default for KeyColors {
+    fn default() -> Self {
+        Self::uniform([0xff; 3])
+    }
+}
+
+impl TryFrom<Vec<[u8; 3]>> for KeyColors {
+    type Error = String;
+
+    fn try_from(slots: Vec<[u8; 3]>) -> std::result::Result<Self, String> {
+        if slots.len() != SLOTS {
+            return Err(format!(
+                "key colours need {SLOTS} slots, got {}",
+                slots.len()
+            ));
+        }
+        Ok(Self(slots))
+    }
+}
+
+impl From<KeyColors> for Vec<[u8; 3]> {
+    fn from(colors: KeyColors) -> Self {
+        colors.0
+    }
 }
 
 pub(crate) fn read_frame() -> Frame {
@@ -180,6 +247,34 @@ mod tests {
             color: [0; 3],
         };
         assert!(write_frame(&cfg).is_err());
+    }
+
+    #[test]
+    fn key_colors_match_hardware_test() {
+        // The slot-finding test lit Esc (1,0) red and PgUp (2,17) green.
+        let mut colors = KeyColors::uniform([0; 3]);
+        colors.set(KeyPos { row: 1, col: 0 }, [0xff, 0, 0]).unwrap();
+        colors
+            .set(KeyPos { row: 2, col: 17 }, [0, 0xff, 0])
+            .unwrap();
+        let frames = colors.frames();
+        assert_eq!(frames.len(), 8);
+        assert!(frames[..7].iter().all(|f| f.0[5] == 54));
+        // Esc is slot 22: packet 1, entry 4.
+        assert_eq!(&frames[1].0[..6], &[0x01, 0x09, 0, 0, 1, 54]);
+        assert_eq!(&frames[1].0[18..21], &[0xff, 0, 0]);
+        // PgUp is slot 61: packet 3, entry 7.
+        assert_eq!(&frames[3].0[27..30], &[0, 0xff, 0]);
+        assert_eq!(&frames[7].0[..6], &[0x01, 0x09, 0, 0, 7, 18]);
+        assert!(colors.set(KeyPos { row: 6, col: 0 }, [0; 3]).is_err());
+    }
+
+    #[test]
+    fn key_colors_json_needs_every_slot() {
+        let json = serde_json::to_string(&KeyColors::default()).unwrap();
+        assert!(json.starts_with("[[255,255,255],"));
+        assert!(serde_json::from_str::<KeyColors>(&json).is_ok());
+        assert!(serde_json::from_str::<KeyColors>("[[1,2,3]]").is_err());
     }
 
     #[test]

@@ -10,6 +10,8 @@ export const LED_MODES = [
 ] as const;
 export type LedMode = (typeof LED_MODES)[number];
 export type LedConfig = { mode: LedMode; brightness: number; speed: number; color: [number, number, number] };
+/** Custom-effect colours: 132 matrix slots, including empty positions, in row-major order. */
+export type KeyColors = [number, number, number][];
 
 /** Distances are in 0.1 mm units, as the firmware stores them. */
 export type TriggerSettings = {
@@ -51,6 +53,8 @@ export const api = {
   deviceInfo: () => invoke<DeviceInfo>("device_info"),
   getLed: () => invoke<LedConfig>("get_led"),
   setLed: (config: LedConfig) => invoke<LedConfig>("set_led", { config }),
+  getKeyColors: () => invoke<KeyColors>("get_key_colors"),
+  setKeyColors: (colors: KeyColors) => invoke<void>("set_key_colors", { colors }),
   getKeyTrigger: (key: KeyPos) => invoke<TriggerSettings>("get_key_trigger", { key }),
   setTrigger: (keys: KeyPos[], settings: TriggerSettings) => invoke<void>("set_trigger", { keys, settings }),
   getKeymap: () => invoke<Keymap>("get_keymap"),

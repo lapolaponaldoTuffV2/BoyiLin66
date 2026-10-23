@@ -2,14 +2,16 @@
 
 use std::fs;
 use std::io::ErrorKind;
+use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use boyi_protocol::keymap::Keymap;
 use boyi_protocol::layout::{self, Key, KeyPos};
-use boyi_protocol::led::LedConfig;
+use boyi_protocol::led::{KeyColors, LedConfig};
 use boyi_protocol::magnetic::{KeyTrigger, TriggerSettings};
 use boyi_protocol::{device::DeviceInfo, Keyboard};
+use serde::{de::DeserializeOwned, Serialize};
 use tauri::{Manager, State};
 
 /// The open keyboard, if any. Dropped after an I/O error so the next call reconnects.
@@ -30,24 +32,29 @@ impl Connection {
     }
 }
 
-/// The keyboard cannot report its key assignments, so the last one written is kept here.
-struct KeymapFile(PathBuf);
+/// The keyboard cannot report its key assignments or per-key colours, so the
+/// last ones written are kept in the app data dir.
+struct SavedCopy<T>(PathBuf, PhantomData<T>);
 
-impl KeymapFile {
-    /// The saved copy, validated like a map about to be written; factory layout if none.
-    fn load(&self) -> Result<Keymap, String> {
+impl<T: Serialize + DeserializeOwned + Default> SavedCopy<T> {
+    fn new(path: PathBuf) -> Self {
+        Self(path, PhantomData)
+    }
+
+    /// The saved copy, validated like a value about to be written; the default if none.
+    fn load(&self) -> Result<T, String> {
         match fs::read(&self.0) {
             Ok(bytes) => serde_json::from_slice(&bytes)
-                .map_err(|e| format!("saved keymap {} is invalid: {e}", self.0.display())),
-            Err(e) if e.kind() == ErrorKind::NotFound => Ok(Keymap::factory()),
+                .map_err(|e| format!("saved copy {} is invalid: {e}", self.0.display())),
+            Err(e) if e.kind() == ErrorKind::NotFound => Ok(T::default()),
             Err(e) => Err(e.to_string()),
         }
     }
 
     /// Writes the new copy next to the saved one; [`Self::commit`] makes it current.
     /// Done before the keyboard is touched, so a full disk fails without side effects.
-    fn stage(&self, map: &Keymap) -> std::io::Result<PathBuf> {
-        let json = serde_json::to_vec_pretty(map).map_err(std::io::Error::other)?;
+    fn stage(&self, value: &T) -> std::io::Result<PathBuf> {
+        let json = serde_json::to_vec_pretty(value).map_err(std::io::Error::other)?;
         if let Some(dir) = self.0.parent() {
             fs::create_dir_all(dir)?;
         }
@@ -58,6 +65,26 @@ impl KeymapFile {
 
     fn commit(&self, staged: &Path) -> std::io::Result<()> {
         fs::rename(staged, &self.0)
+    }
+
+    /// Stages the copy, runs `write` on the keyboard, then makes the copy current.
+    fn write_and_save(
+        &self,
+        conn: &Connection,
+        value: &T,
+        write: impl FnOnce(&Keyboard) -> boyi_protocol::Result<()>,
+    ) -> Result<(), String> {
+        let staged = self
+            .stage(value)
+            .map_err(|e| format!("could not save the copy, keyboard not changed: {e}"))?;
+        if let Err(e) = conn.with(write) {
+            let _ = fs::remove_file(&staged);
+            return Err(format!(
+                "keyboard write failed and may be partly applied: {e}"
+            ));
+        }
+        self.commit(&staged)
+            .map_err(|e| format!("keyboard updated, but saving the copy failed: {e}"))
     }
 }
 
@@ -97,7 +124,7 @@ fn set_trigger(
 
 /// The last keymap this app wrote, or the factory layout if it never wrote one.
 #[tauri::command]
-fn get_keymap(file: State<KeymapFile>) -> Result<Keymap, String> {
+fn get_keymap(file: State<SavedCopy<Keymap>>) -> Result<Keymap, String> {
     file.load()
 }
 
@@ -110,28 +137,35 @@ fn factory_keymap() -> Keymap {
 #[tauri::command]
 fn set_keymap(
     conn: State<Connection>,
-    file: State<KeymapFile>,
+    file: State<SavedCopy<Keymap>>,
     keymap: Keymap,
 ) -> Result<(), String> {
-    let staged = file
-        .stage(&keymap)
-        .map_err(|e| format!("could not save the keymap copy, keyboard not changed: {e}"))?;
-    if let Err(e) = conn.with(|kb| kb.write_keymap(&keymap)) {
-        let _ = fs::remove_file(&staged);
-        return Err(format!(
-            "keyboard write failed and may be partly applied: {e}"
-        ));
-    }
-    file.commit(&staged)
-        .map_err(|e| format!("keyboard updated, but saving the keymap copy failed: {e}"))
+    file.write_and_save(&conn, &keymap, |kb| kb.write_keymap(&keymap))
+}
+
+/// The last Custom-effect colours this app wrote, or all white.
+#[tauri::command]
+fn get_key_colors(file: State<SavedCopy<KeyColors>>) -> Result<KeyColors, String> {
+    file.load()
+}
+
+/// Writes the Custom-effect colours to the keyboard, then remembers them.
+#[tauri::command]
+fn set_key_colors(
+    conn: State<Connection>,
+    file: State<SavedCopy<KeyColors>>,
+    colors: KeyColors,
+) -> Result<(), String> {
+    file.write_and_save(&conn, &colors, |kb| kb.set_key_colors(&colors))
 }
 
 pub fn run() {
     tauri::Builder::default()
         .manage(Connection::default())
         .setup(|app| {
-            let path = app.path().app_data_dir()?.join("keymap.json");
-            app.manage(KeymapFile(path));
+            let dir = app.path().app_data_dir()?;
+            app.manage(SavedCopy::<Keymap>::new(dir.join("keymap.json")));
+            app.manage(SavedCopy::<KeyColors>::new(dir.join("key_colors.json")));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -143,7 +177,9 @@ pub fn run() {
             set_trigger,
             get_keymap,
             factory_keymap,
-            set_keymap
+            set_keymap,
+            get_key_colors,
+            set_key_colors
         ])
         .run(tauri::generate_context!())
         .expect("failed to start BoyiLin66");
@@ -162,15 +198,26 @@ mod tests {
 
     #[test]
     fn missing_copy_means_factory() {
-        let file = KeymapFile(dir("missing").join("keymap.json"));
+        let file = SavedCopy::<Keymap>::new(dir("missing").join("keymap.json"));
         assert_eq!(file.load().unwrap(), Keymap::factory());
+    }
+
+    #[test]
+    fn key_colors_copy_defaults_to_white_and_needs_every_slot() {
+        let d = dir("colors");
+        let file = SavedCopy::<KeyColors>::new(d.join("key_colors.json"));
+        assert_eq!(file.load().unwrap(), KeyColors::uniform([0xff; 3]));
+        fs::create_dir_all(&d).unwrap();
+        fs::write(&file.0, b"[[1,2,3]]").unwrap();
+        assert!(file.load().is_err());
+        fs::remove_dir_all(&d).unwrap();
     }
 
     #[test]
     fn corrupt_or_invalid_copies_are_errors() {
         let d = dir("invalid");
         fs::create_dir_all(&d).unwrap();
-        let file = KeymapFile(d.join("keymap.json"));
+        let file = SavedCopy::<Keymap>::new(d.join("keymap.json"));
         fs::write(&file.0, b"{not json").unwrap();
         assert!(file.load().is_err());
         let mut no_fn: Vec<KeyAction> = Keymap::factory().into();
@@ -186,7 +233,7 @@ mod tests {
     #[test]
     fn staged_copy_becomes_current_only_on_commit() {
         let d = dir("stage");
-        let file = KeymapFile(d.join("keymap.json"));
+        let file = SavedCopy::<Keymap>::new(d.join("keymap.json"));
         let mut map = Keymap::factory();
         map.set(
             boyi_protocol::layout::KeyPos { row: 3, col: 0 },
@@ -206,7 +253,7 @@ mod tests {
         fs::create_dir_all(&d).unwrap();
         // A regular file where the data directory should be.
         fs::write(d.join("blocker"), b"").unwrap();
-        let file = KeymapFile(d.join("blocker").join("keymap.json"));
+        let file = SavedCopy::<Keymap>::new(d.join("blocker").join("keymap.json"));
         assert!(file.stage(&Keymap::factory()).is_err());
         fs::remove_dir_all(&d).unwrap();
     }

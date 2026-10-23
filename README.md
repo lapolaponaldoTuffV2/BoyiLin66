@@ -28,7 +28,7 @@ próprio teclado.
 | Remapeamento: teclas, atalhos (Ctrl+C…), multimídia, desativar | ✅ |
 | Remapeamento: botões e rolagem do mouse | 🧪 beta |
 | DKS, Mod-Tap e Toggle (até 40 teclas) | ✅ |
-| RGB por tecla | 🚧 protocolo decodificado |
+| RGB por tecla (efeito Personalizado) | ✅ |
 | Macros: gravar teclas e pausas, repetir, liga/desliga, enquanto segurar (até 10) | ✅ |
 | Calibração | 🚧 |
 | Luz lateral, trava do Win, tempo de repouso | 🚧 |

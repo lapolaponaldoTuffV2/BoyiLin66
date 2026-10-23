@@ -260,6 +260,12 @@ impl Keymap {
     }
 }
 
+impl Default for Keymap {
+    fn default() -> Self {
+        Self::factory()
+    }
+}
+
 impl TryFrom<Vec<KeyAction>> for Keymap {
     type Error = String;
 

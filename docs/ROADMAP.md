@@ -14,6 +14,7 @@ from the app. Wire details are in [`protocol.md`](protocol.md).
 | Key remapping: keys, shortcuts, media, disable (`0x18`) | ✅ | ✅ Teclas |
 | Mod-Tap, Toggle, DKS (`0x22`) | ✅ | ✅ Teclas |
 | Macros: key steps with pauses, four playback modes (`0x19`) | ✅ | ✅ Teclas |
+| Per-key colour for the Custom effect (`0x09`) | ✅ | ✅ Iluminação |
 
 ## Next
 
@@ -22,8 +23,7 @@ tests of the captured bytes → Tauri command → UI → update `protocol.md`.
 
 1. **Calibration** (`0x21`): per key and all keys, with status replies.
 2. **Sensitivity extras** (`0x21`): rate of return, debounce, reset to factory.
-3. **Lighting extras**: per-key colour (`0x09`, decoded and confirmed), side light
-   writes (`0x08`), the six effect option bytes of `0x07`.
+3. **Lighting extras**: side light writes (`0x08`), the six effect option bytes of `0x07`.
 4. **System** (`0x14`): Windows-key lock, sleep timer, factory reset.
 5. **Packaging**: AppImage, `.deb`, `.rpm`, install script.
 

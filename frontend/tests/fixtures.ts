@@ -16,6 +16,7 @@ export const test = base.extend({
         hold: "", release: () => {}, calls: [] as { cmd: string; args: any }[],
         keymap: structuredClone(factory),
         led: { mode: "Static", brightness: 4, speed: 2, color: [255, 0, 0] },
+        keyColors: Array.from({ length: 132 }, () => [255, 255, 255]),
         triggers: Object.fromEntries(keys.map((key, i) => [`${key.pos.row}:${key.pos.col}`, {
           press: i === 1 ? 20 : 10, release: i === 1 ? 20 : 10,
           separate: false, quick_trigger: false, qt_press: 5, qt_release: 5,
@@ -36,6 +37,8 @@ export const test = base.extend({
             case "set_keymap": state.keymap = structuredClone(args.keymap); return;
             case "get_led": return structuredClone(state.led);
             case "set_led": state.led = args.config; return structuredClone(state.led);
+            case "get_key_colors": return structuredClone(state.keyColors);
+            case "set_key_colors": state.keyColors = structuredClone(args.colors); return;
             case "get_key_trigger": return structuredClone(state.triggers[`${args.key.row}:${args.key.col}`]);
             case "set_trigger":
               for (const key of args.keys) state.triggers[`${key.row}:${key.col}`] = {

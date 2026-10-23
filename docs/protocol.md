@@ -116,8 +116,8 @@ the release point is not separate, send `release` equal to `press`.
 ### `0x09` Per-key colour
 
 Used by the Custom effect. 132 slots × 3 bytes (R G B), 18 slots per packet,
-8 packets; byte 2 = custom slot (`0`), byte 4 = packet index. No reply. Then
-select effect 10 (Custom) with `0x07`.
+8 packets; byte 2 = custom slot (`0`), byte 4 = packet index. No reply, and no
+command reads the colours back. Then select effect 10 (Custom) with `0x07`.
 
 ### `0x18` Key assignments
 

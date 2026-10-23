@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 use crate::frame::{self, Frame};
 use crate::keymap::{self, Keymap};
 use crate::layout::KeyPos;
-use crate::led::{self, LedConfig};
+use crate::led::{self, KeyColors, LedConfig};
 use crate::magnetic::{self, KeyTrigger, TriggerSettings};
 use crate::{Error, Result};
 
@@ -140,6 +140,17 @@ impl Keyboard {
             });
         }
         Ok(now)
+    }
+
+    /// Writes the Custom effect's colours; select the Custom effect with
+    /// [`Self::set_led`] to show them. The firmware does not answer.
+    pub fn set_key_colors(&self, colors: &KeyColors) -> Result<()> {
+        for frame in colors.frames() {
+            self.send(&frame)?;
+            // Without replies there is no flow control; give each packet time to land.
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        Ok(())
     }
 
     pub fn key_trigger(&self, key: KeyPos) -> Result<KeyTrigger> {

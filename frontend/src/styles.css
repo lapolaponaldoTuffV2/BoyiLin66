@@ -439,6 +439,9 @@ input[type="range"] {
 .kb-key.remapped {
   border-color: var(--green);
 }
+.kb-key.colored {
+  border-bottom-color: var(--tint);
+}
 .notice {
   margin: 0;
   padding: 12px 14px;
