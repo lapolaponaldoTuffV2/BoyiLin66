@@ -17,6 +17,7 @@ export const test = base.extend({
         keymap: structuredClone(factory),
         led: { mode: "Static", brightness: 4, speed: 2, color: [255, 0, 0] },
         performance: { debounce: 3, report_rate_khz: 8 },
+        side: { mode: "Wave", brightness: 4, speed: 3, color: [255, 0, 0], options: [0, 0, 0, 0, 1, 0] },
         keyColors: Array.from({ length: 132 }, () => [255, 255, 255]),
         triggers: Object.fromEntries(keys.map((key, i) => [`${key.pos.row}:${key.pos.col}`, {
           press: i === 1 ? 20 : 10, release: i === 1 ? 20 : 10,
@@ -39,6 +40,8 @@ export const test = base.extend({
             case "get_led": return structuredClone(state.led);
             case "set_led": state.led = args.config; return structuredClone(state.led);
             case "calibrate_key": return true;
+            case "get_side_light": return structuredClone(state.side);
+            case "set_side_light": state.side = structuredClone(args.side); return structuredClone(state.side);
             case "get_performance": return structuredClone(state.performance);
             case "set_performance": state.performance = structuredClone(args.performance); return structuredClone(state.performance);
             case "reset_sensitivity":

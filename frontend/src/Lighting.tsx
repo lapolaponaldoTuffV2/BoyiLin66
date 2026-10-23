@@ -2,7 +2,8 @@ import { useEffect, useId, useRef, useState } from "react";
 import { api, Key, KeyColors, LED_MODES, LedConfig, LedMode, posId } from "./api";
 import { Keyboard } from "./Keyboard";
 import { keyIndex } from "./keymap";
-import { Icon, Panel, Slider } from "./ui";
+import { SideLightPanel } from "./SideLight";
+import { fromHex, Icon, Panel, Slider, toHex } from "./ui";
 
 const MODE_NAMES: Record<LedMode, string> = {
   Static: "Estático", Breath: "Respiração", Wave: "Onda", Neon: "Neon", Radar: "Radar", Snake: "Cobra",
@@ -11,8 +12,6 @@ const MODE_NAMES: Record<LedMode, string> = {
   Fireworks: "Fogos", MusicRhythm: "Ritmo musical",
 };
 
-const toHex = (c: number[]) => "#" + c.map((v) => v.toString(16).padStart(2, "0")).join("");
-const fromHex = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)) as LedConfig["color"];
 const WHITE: KeyColors = Array.from({ length: 132 }, () => [255, 255, 255]);
 
 export function Lighting({ keys, onError }: { keys: Key[]; onError: (e: unknown) => void }) {
@@ -159,6 +158,7 @@ export function Lighting({ keys, onError }: { keys: Key[]; onError: (e: unknown)
           <Icon name="refresh" /> Ler iluminação do teclado
         </button>
       </>}
+      <SideLightPanel onError={onError} />
     </div>
   );
 }

@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 use crate::frame::{self, Frame};
 use crate::keymap::{self, Keymap};
 use crate::layout::KeyPos;
-use crate::led::{self, KeyColors, LedConfig};
+use crate::led::{self, KeyColors, LedConfig, SideLight};
 use crate::magnetic::{self, KeyTrigger, Performance, TriggerSettings};
 use crate::{Error, Result};
 
@@ -123,6 +123,25 @@ impl Keyboard {
             return Err(Error::BadReply {
                 cmd: led::CMD,
                 reason: "keyboard kept the old lighting",
+            });
+        }
+        Ok(now)
+    }
+
+    pub fn side_light(&self) -> Result<SideLight> {
+        led::parse_side(&self.request(&led::side_read_frame(), led::SIDE_REPLY_LEN)?)
+    }
+
+    /// Writes the side light, then reads it back and fails if it did not
+    /// take. Not confirmed on hardware yet.
+    pub fn set_side_light(&self, side: &SideLight) -> Result<SideLight> {
+        self.send(&led::side_write_frame(side)?)?;
+        std::thread::sleep(Duration::from_millis(50));
+        let now = self.side_light()?;
+        if now.mode != side.mode || now.color != side.color {
+            return Err(Error::BadReply {
+                cmd: led::SIDE_CMD,
+                reason: "keyboard kept the old side light",
             });
         }
         Ok(now)

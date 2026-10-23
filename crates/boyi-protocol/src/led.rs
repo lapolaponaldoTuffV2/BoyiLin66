@@ -1,5 +1,5 @@
-//! Main keyboard backlight (command `0x07`) and the per-key colours of the
-//! Custom effect (command `0x09`).
+//! Main keyboard backlight (command `0x07`), side light (command `0x08`) and
+//! the per-key colours of the Custom effect (command `0x09`).
 //!
 //! Payload: `mode, brightness, speed, r, g, b, <6 effect bytes>`.
 //! The meaning of the six effect bytes is not known yet; writes send zeros.
@@ -93,6 +93,90 @@ pub struct LedConfig {
     pub brightness: u8,
     pub speed: u8,
     pub color: [u8; 3],
+}
+
+/// Side light effects, with the ids the firmware uses.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SideMode {
+    Static,
+    Breath,
+    Wave,
+    Collision,
+    Neon,
+    Off,
+}
+
+impl SideMode {
+    pub const ALL: [SideMode; 6] = [
+        Self::Static,
+        Self::Breath,
+        Self::Wave,
+        Self::Collision,
+        Self::Neon,
+        Self::Off,
+    ];
+
+    fn id(self) -> u8 {
+        self as u8
+    }
+
+    fn from_id(id: u8) -> Option<Self> {
+        Self::ALL.get(id as usize).copied()
+    }
+}
+
+/// Side light state, laid out like the backlight. The read is confirmed on
+/// hardware; writing is not yet.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SideLight {
+    pub mode: SideMode,
+    /// 0–4.
+    pub brightness: u8,
+    /// 0–4.
+    pub speed: u8,
+    pub color: [u8; 3],
+    /// Six effect bytes of unknown meaning, written back as read.
+    pub options: [u8; 6],
+}
+
+pub const SIDE_CMD: u8 = 0x08;
+const SIDE_WRITE_LEN: u8 = 0x0d;
+pub(crate) const SIDE_REPLY_LEN: usize = 12;
+
+pub(crate) fn side_read_frame() -> Frame {
+    Frame::new(SIDE_CMD, 1, 0, &[])
+}
+
+pub(crate) fn side_write_frame(side: &SideLight) -> Result<Frame> {
+    if side.brightness > MAX_BRIGHTNESS {
+        return Err(Error::OutOfRange("side light brightness"));
+    }
+    if side.speed > MAX_SPEED {
+        return Err(Error::OutOfRange("side light speed"));
+    }
+    let mut options = side.options;
+    // The official software clears this byte for the static effect.
+    if side.mode == SideMode::Static {
+        options[4] = 0;
+    }
+    let [r, g, b] = side.color;
+    let mut payload = vec![side.mode.id(), side.brightness, side.speed, r, g, b];
+    payload.extend(options);
+    Ok(Frame::new(SIDE_CMD, 0, SIDE_WRITE_LEN, &payload))
+}
+
+pub(crate) fn parse_side(reply: &Frame) -> Result<SideLight> {
+    let p = reply.payload();
+    Ok(SideLight {
+        mode: SideMode::from_id(p[0]).ok_or(Error::BadReply {
+            cmd: SIDE_CMD,
+            reason: "unknown side light mode",
+        })?,
+        brightness: p[1],
+        speed: p[2],
+        color: [p[3], p[4], p[5]],
+        options: p[6..12].try_into().expect("reply length checked"),
+    })
 }
 
 /// Colours for the Custom effect: one RGB per matrix slot, row-major.
@@ -275,6 +359,30 @@ mod tests {
         assert!(json.starts_with("[[255,255,255],"));
         assert!(serde_json::from_str::<KeyColors>(&json).is_ok());
         assert!(serde_json::from_str::<KeyColors>("[[1,2,3]]").is_err());
+    }
+
+    #[test]
+    fn side_light_round_trips_the_captured_reply() {
+        let captured = [0x02, 0x04, 0x03, 0xff, 0, 0, 0, 0, 0, 0, 0x01, 0];
+        let side = parse_side(&Frame::new(SIDE_CMD, 0, 12, &captured)).unwrap();
+        assert_eq!(side.mode, SideMode::Wave);
+        assert_eq!(
+            (side.brightness, side.speed, side.color),
+            (4, 3, [0xff, 0, 0])
+        );
+        let f = side_write_frame(&side).unwrap();
+        assert_eq!(&f.0[..6], &[0x01, 0x08, 0, 0, 0, 0x0d]);
+        assert_eq!(&f.0[6..18], &captured);
+        // Static clears option byte 4, as the official software does.
+        let f = side_write_frame(&SideLight {
+            mode: SideMode::Static,
+            ..side.clone()
+        })
+        .unwrap();
+        assert_eq!(f.0[6 + 10], 0);
+        assert!(side_write_frame(&SideLight { speed: 5, ..side }).is_err());
+        assert_eq!(SideMode::from_id(5), Some(SideMode::Off));
+        assert_eq!(SideMode::from_id(6), None);
     }
 
     #[test]

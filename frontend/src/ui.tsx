@@ -10,6 +10,9 @@ const paths = {
 } as const;
 export type IconName = keyof typeof paths;
 
+export const toHex = (c: number[]) => "#" + c.map((v) => v.toString(16).padStart(2, "0")).join("");
+export const fromHex = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)) as [number, number, number];
+
 /** Formats a distance in 0.1 mm units. */
 export const mm = (v: number) => `${(v / 10).toFixed(1).replace(".", ",")} mm`;
 

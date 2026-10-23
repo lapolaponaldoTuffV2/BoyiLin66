@@ -8,7 +8,7 @@ use std::sync::Mutex;
 
 use boyi_protocol::keymap::Keymap;
 use boyi_protocol::layout::{self, Key, KeyPos};
-use boyi_protocol::led::{KeyColors, LedConfig};
+use boyi_protocol::led::{KeyColors, LedConfig, SideLight};
 use boyi_protocol::magnetic::{KeyTrigger, Performance, TriggerSettings};
 use boyi_protocol::{device::DeviceInfo, Keyboard};
 use serde::{de::DeserializeOwned, Serialize};
@@ -109,6 +109,16 @@ fn set_led(conn: State<Connection>, config: LedConfig) -> Result<LedConfig, Stri
 }
 
 #[tauri::command]
+fn get_side_light(conn: State<Connection>) -> Result<SideLight, String> {
+    conn.with(Keyboard::side_light)
+}
+
+#[tauri::command]
+fn set_side_light(conn: State<Connection>, side: SideLight) -> Result<SideLight, String> {
+    conn.with(|kb| kb.set_side_light(&side))
+}
+
+#[tauri::command]
 fn get_key_trigger(conn: State<Connection>, key: KeyPos) -> Result<KeyTrigger, String> {
     conn.with(|kb| kb.key_trigger(key))
 }
@@ -198,6 +208,8 @@ pub fn run() {
             device_info,
             get_led,
             set_led,
+            get_side_light,
+            set_side_light,
             get_key_trigger,
             set_trigger,
             calibrate_key,

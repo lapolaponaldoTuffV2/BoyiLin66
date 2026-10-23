@@ -461,6 +461,9 @@ input[type="range"] {
 .remap-fields p {
   margin: 0;
 }
+.remap-fields > .color-field {
+  display: flex;
+}
 select {
   width: 100%;
   min-height: 36px;

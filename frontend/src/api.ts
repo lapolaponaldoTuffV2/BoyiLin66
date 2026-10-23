@@ -10,6 +10,12 @@ export const LED_MODES = [
 ] as const;
 export type LedMode = (typeof LED_MODES)[number];
 export type LedConfig = { mode: LedMode; brightness: number; speed: number; color: [number, number, number] };
+export const SIDE_MODES = ["Static", "Breath", "Wave", "Collision", "Neon", "Off"] as const;
+/** `options` are six effect bytes of unknown meaning, sent back as read. */
+export type SideLight = {
+  mode: (typeof SIDE_MODES)[number]; brightness: number; speed: number;
+  color: [number, number, number]; options: number[];
+};
 /** Custom-effect colours: 132 matrix slots, including empty positions, in row-major order. */
 export type KeyColors = [number, number, number][];
 
@@ -56,6 +62,8 @@ export const api = {
   deviceInfo: () => invoke<DeviceInfo>("device_info"),
   getLed: () => invoke<LedConfig>("get_led"),
   setLed: (config: LedConfig) => invoke<LedConfig>("set_led", { config }),
+  getSideLight: () => invoke<SideLight>("get_side_light"),
+  setSideLight: (side: SideLight) => invoke<SideLight>("set_side_light", { side }),
   getKeyColors: () => invoke<KeyColors>("get_key_colors"),
   setKeyColors: (colors: KeyColors) => invoke<void>("set_key_colors", { colors }),
   getKeyTrigger: (key: KeyPos) => invoke<TriggerSettings>("get_key_trigger", { key }),
