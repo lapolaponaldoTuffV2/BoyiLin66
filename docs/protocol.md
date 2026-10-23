@@ -26,12 +26,27 @@ Every command and every reply is one 64-byte report:
 | 0 | Report id, always `0x01` |
 | 1 | Command |
 | 2 | For commands that both read and write: `1` = read, `0` = write |
-| 3–4 | `0` |
+| 3 | `0` |
+| 4 | Packet index in multi-packet transfers, otherwise `0` |
 | 5 | Payload length |
 | 6–63 | Payload, zero padded |
 
 Replies repeat the command byte. Some writes get no reply; read the value back
 to confirm them.
+
+## Key matrix
+
+Keys are addressed by (row 0–5, column 0–21). Commands that cover every key
+walk all 132 slots in row-major order (`index = row × 22 + column`), empty
+slots included. The 66 keys occupy:
+
+| Row | Columns |
+|---|---|
+| 1 | 0–12, 14 |
+| 2 | 0–12, 14, 17 (17 = PgUp) |
+| 3 | 0, 2–12, 14, 17 (17 = PgDn) |
+| 4 | 0, 2–11, 14, 16 |
+| 5 | 0, 1, 2, 6, 10, 12 (Fn), 13, 15, 16, 17 |
 
 ## Commands
 
@@ -81,17 +96,8 @@ Read with byte 2 = `1`; reply has the same shape as `0x07`. Writing is
 All requests use length `0x18` and start with a sub-command byte. Distances
 are in 0.1 mm; full travel is 4.0 mm (`40`).
 
-**Key matrix.** Keys are addressed by (row 0–5, column 0–21). Where a command
-takes a set of keys it sends 22 bytes, one per column, where bit *n* selects
-row *n*. The 66 keys occupy:
-
-| Row | Columns |
-|---|---|
-| 1 | 0–12, 14 |
-| 2 | 0–12, 14, 17 |
-| 3 | 0, 2–12, 14, 17 |
-| 4 | 0, 2–11, 14, 16 |
-| 5 | 0, 1, 2, 6, 10, 12, 13, 15, 16, 17 |
+Where a command takes a set of keys it sends 22 bytes, one per column, where
+bit *n* selects row *n*.
 
 **Sub-commands**
 
@@ -107,8 +113,35 @@ row *n*. The 66 keys occupy:
 `mode` flags: `0x01` = separate release point, `0x0C` = Quick Trigger. When
 the release point is not separate, send `release` equal to `press`.
 
+### `0x09` Per-key colour
+
+Used by the Custom effect. 132 slots × 3 bytes (R G B), 18 slots per packet,
+8 packets; byte 2 = custom slot (`0`), byte 4 = packet index. No reply. Then
+select effect 10 (Custom) with `0x07`.
+
+### `0x18` Key assignments
+
+Writes one whole layer: 132 slots × 4 bytes, 14 slots per packet, 10 packets
+(the last carries 6 slots). Byte 2 = layer (`0` = base), byte 4 = packet
+index. Each packet is acknowledged with a reply whose payload starts `00`.
+There is no way to read a layer back.
+
+| Bytes | Action |
+|---|---|
+| `00 00 00 00` | Disabled |
+| `00 usage 00 00` | HID keyboard usage (modifiers `E0`–`E7` included) |
+| `01 00 00 00` | Fn |
+| `13 mod usage 00` · `13 mod1 mod2 usage` | Shortcut; modifiers as HID usages, **unconfirmed** |
+| `07 code 00 00` | Media key, **unconfirmed** (codes in `keymap.rs`) |
+| `12 00 buttons 00` · `12 01 step 00` | Mouse button mask / wheel step, **unconfirmed** |
+
+### `0x14` System
+
+Payload starts with a sub-command: `01` factory reset, `02` Windows-key lock,
+`03` sleep timer. All **unconfirmed**.
+
 ## Not covered yet
 
-Key remapping, macros, DKS / Mod-Tap / Toggle keys, calibration, Win-lock and
-sleep timer, per-key custom lighting, side light writes. Firmware updates are
+Macros, DKS / Mod-Tap / Toggle keys, calibration, Win-lock and
+sleep timer, side light writes, the Fn layer. Firmware updates are
 deliberately out of scope.

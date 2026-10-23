@@ -4,7 +4,8 @@
 //! byte 0     report id (always 0x01)
 //! byte 1     command
 //! byte 2     direction flag for commands that both read and write (1 = read)
-//! byte 3..4  zero
+//! byte 3     zero
+//! byte 4     packet index in multi-packet transfers, otherwise zero
 //! byte 5     payload length
 //! byte 6..   payload
 //! ```
@@ -32,6 +33,12 @@ impl Frame {
         b[5] = len;
         b[HEADER..HEADER + payload.len()].copy_from_slice(payload);
         Self(b)
+    }
+
+    /// Sets the packet index of a multi-packet transfer.
+    pub fn with_index(mut self, index: u8) -> Self {
+        self.0[4] = index;
+        self
     }
 
     pub fn cmd(&self) -> u8 {

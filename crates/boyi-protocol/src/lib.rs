@@ -17,6 +17,7 @@
 
 pub mod device;
 pub mod frame;
+pub mod keymap;
 pub mod layout;
 pub mod led;
 pub mod magnetic;

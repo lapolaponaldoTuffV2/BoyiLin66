@@ -8,6 +8,7 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use crate::frame::{self, Frame};
+use crate::keymap::{self, Keymap};
 use crate::layout::KeyPos;
 use crate::led::{self, LedConfig};
 use crate::magnetic::{self, KeyTrigger, TriggerSettings};
@@ -157,6 +158,20 @@ impl Keyboard {
                 reason: "keyboard rejected the trigger setting",
             }),
         }
+    }
+
+    /// Replaces the base layer. Each packet is acknowledged with status `0`.
+    pub fn write_keymap(&self, map: &Keymap) -> Result<()> {
+        for frame in keymap::write_frames(map)? {
+            let reply = self.request(&frame, 0)?;
+            if reply.0[6] != 0 {
+                return Err(Error::BadReply {
+                    cmd: keymap::CMD,
+                    reason: "keyboard rejected a keymap packet",
+                });
+            }
+        }
+        Ok(())
     }
 }
 
