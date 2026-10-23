@@ -11,7 +11,7 @@ use crate::frame::{self, Frame};
 use crate::keymap::{self, Keymap};
 use crate::layout::KeyPos;
 use crate::led::{self, KeyColors, LedConfig};
-use crate::magnetic::{self, KeyTrigger, TriggerSettings};
+use crate::magnetic::{self, KeyTrigger, Performance, TriggerSettings};
 use crate::{Error, Result};
 
 pub const VENDOR_ID: u16 = 0x0416;
@@ -136,6 +136,43 @@ impl Keyboard {
             // Without replies there is no flow control; give each packet time to land.
             std::thread::sleep(Duration::from_millis(10));
         }
+        Ok(())
+    }
+
+    pub fn performance(&self) -> Result<Performance> {
+        let len = magnetic::PERFORMANCE_REPLY_LEN;
+        Ok(Performance {
+            debounce: magnetic::parse_debounce(
+                &self.request(&magnetic::debounce_read_frame(), len)?,
+            )?,
+            report_rate_khz: magnetic::parse_report_rate(
+                &self.request(&magnetic::report_rate_read_frame(), len)?,
+            )?,
+        })
+    }
+
+    /// Writes debounce and report rate, then reads them back and fails if
+    /// they did not take. The writes are not confirmed on hardware yet.
+    pub fn set_performance(&self, p: &Performance) -> Result<Performance> {
+        for frame in magnetic::performance_frames(p)? {
+            self.send(&frame)?;
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        let now = self.performance()?;
+        if now != *p {
+            return Err(Error::BadReply {
+                cmd: magnetic::CMD,
+                reason: "keyboard kept the old debounce or report rate",
+            });
+        }
+        Ok(now)
+    }
+
+    /// Resets every key's travel settings to the factory values. Not
+    /// confirmed on hardware; read the keys back afterwards.
+    pub fn reset_sensitivity(&self) -> Result<()> {
+        self.send(&magnetic::reset_frame())?;
+        std::thread::sleep(Duration::from_millis(200));
         Ok(())
     }
 

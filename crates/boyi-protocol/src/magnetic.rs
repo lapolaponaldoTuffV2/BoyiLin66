@@ -15,6 +15,13 @@ const SUB_QUERY_KEY: u8 = 0x05;
 /// In the mode byte's place: puts the masked keys in calibration mode; an empty mask leaves it.
 const SUB_CALIBRATION_KEYS: u8 = 0x02;
 const SUB_CALIBRATE: u8 = 0x07;
+const SUB_RESET: u8 = 0x06;
+const SUB_REPORT_RATE: u8 = 0x09;
+const SUB_DEBOUNCE: u8 = 0x0a;
+/// Second payload byte of the report-rate and debounce commands.
+const READ: u8 = 0x00;
+const WRITE: u8 = 0x01;
+pub(crate) const PERFORMANCE_REPLY_LEN: usize = 2;
 /// The per-key reply declares 4 payload bytes but carries 6; only the declared part is checked.
 pub(crate) const KEY_REPLY_LEN: usize = 4;
 
@@ -112,6 +119,64 @@ pub(crate) fn apply_frame(keys: &[KeyPos], s: &TriggerSettings) -> Result<Frame>
     Ok(Frame::new(CMD, 0, LEN, &payload))
 }
 
+/// Keyboard-wide timing. Reads are confirmed on hardware; writes are not yet.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Performance {
+    /// Debounce ("anti-shake") level, 0–7.
+    pub debounce: u8,
+    /// USB report rate in kHz: 1, 2, 4 or 8.
+    pub report_rate_khz: u8,
+}
+
+pub const MAX_DEBOUNCE: u8 = 7;
+pub const REPORT_RATES_KHZ: [u8; 4] = [1, 2, 4, 8];
+
+pub(crate) fn debounce_read_frame() -> Frame {
+    Frame::new(CMD, 0, LEN, &[SUB_DEBOUNCE, READ])
+}
+
+pub(crate) fn report_rate_read_frame() -> Frame {
+    Frame::new(CMD, 0, LEN, &[SUB_REPORT_RATE, READ])
+}
+
+/// The two frames that write `p`.
+pub(crate) fn performance_frames(p: &Performance) -> Result<[Frame; 2]> {
+    if p.debounce > MAX_DEBOUNCE {
+        return Err(Error::OutOfRange("debounce (0–7)"));
+    }
+    if !REPORT_RATES_KHZ.contains(&p.report_rate_khz) {
+        return Err(Error::OutOfRange("report rate (1, 2, 4 or 8 kHz)"));
+    }
+    Ok([
+        Frame::new(CMD, 0, LEN, &[SUB_DEBOUNCE, WRITE, p.debounce]),
+        Frame::new(CMD, 0, LEN, &[SUB_REPORT_RATE, WRITE, p.report_rate_khz]),
+    ])
+}
+
+/// The value in a `sub value` reply, checking it answers `sub`.
+pub(crate) fn parse_setting(reply: &Frame, sub: u8) -> Result<u8> {
+    match reply.payload() {
+        [s, v, ..] if *s == sub => Ok(*v),
+        _ => Err(Error::BadReply {
+            cmd: CMD,
+            reason: "unexpected setting reply",
+        }),
+    }
+}
+
+pub(crate) fn parse_debounce(reply: &Frame) -> Result<u8> {
+    parse_setting(reply, SUB_DEBOUNCE)
+}
+
+pub(crate) fn parse_report_rate(reply: &Frame) -> Result<u8> {
+    parse_setting(reply, SUB_REPORT_RATE)
+}
+
+/// Resets every key's travel settings to the factory values. **Unconfirmed.**
+pub(crate) fn reset_frame() -> Frame {
+    Frame::new(CMD, 0, LEN, &[SUB_RESET])
+}
+
 /// Marks `keys` for calibration, or with no keys leaves calibration mode.
 pub(crate) fn calibration_keys_frame(keys: &[KeyPos]) -> Result<Frame> {
     let mut payload = vec![SUB_CALIBRATION_KEYS];
@@ -159,6 +224,46 @@ mod tests {
         expected.extend([0; 20]);
         expected.extend([15, 15, 5, 5]);
         assert_eq!(&f.0[..expected.len()], &expected[..]);
+    }
+
+    #[test]
+    fn performance_reads_match_hardware_test() {
+        assert_eq!(
+            &debounce_read_frame().0[..8],
+            &[0x01, 0x21, 0, 0, 0, 0x18, 0x0a, 0x00]
+        );
+        assert_eq!(
+            &report_rate_read_frame().0[..8],
+            &[0x01, 0x21, 0, 0, 0, 0x18, 0x09, 0x00]
+        );
+        // Captured replies: debounce 3, report rate 8 kHz.
+        let reply = |b: &[u8]| Frame::new(CMD, 0, b.len() as u8, b);
+        assert_eq!(parse_debounce(&reply(&[0x0a, 0x03])).unwrap(), 3);
+        assert_eq!(parse_report_rate(&reply(&[0x09, 0x08])).unwrap(), 8);
+        assert!(parse_debounce(&reply(&[0x09, 0x08])).is_err());
+    }
+
+    #[test]
+    fn performance_writes() {
+        let [debounce, rate] = performance_frames(&Performance {
+            debounce: 5,
+            report_rate_khz: 4,
+        })
+        .unwrap();
+        assert_eq!(
+            &debounce.0[..9],
+            &[0x01, 0x21, 0, 0, 0, 0x18, 0x0a, 0x01, 5]
+        );
+        assert_eq!(&rate.0[..9], &[0x01, 0x21, 0, 0, 0, 0x18, 0x09, 0x01, 4]);
+        let bad = |debounce, report_rate_khz| {
+            performance_frames(&Performance {
+                debounce,
+                report_rate_khz,
+            })
+            .is_err()
+        };
+        assert!(bad(8, 8) && bad(0, 3) && bad(0, 0) && !bad(7, 1));
+        assert_eq!(&reset_frame().0[..7], &[0x01, 0x21, 0, 0, 0, 0x18, 0x06]);
     }
 
     #[test]

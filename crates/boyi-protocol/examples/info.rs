@@ -13,6 +13,11 @@ fn main() -> boyi_protocol::Result<()> {
     println!("device   {}", info.path.display());
     println!("serial   {}", info.serial);
     println!("lighting {:?}", kb.led()?);
+    let perf = kb.performance()?;
+    println!(
+        "timing   debounce {}  report rate {} kHz",
+        perf.debounce, perf.report_rate_khz
+    );
     for key in KEYS
         .iter()
         .filter(|k| ["Esc", "W", "A", "S", "D"].contains(&k.label))

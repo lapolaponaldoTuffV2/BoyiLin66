@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, Key, posId, TriggerSettings } from "./api";
 import { Keyboard } from "./Keyboard";
+import { Performance } from "./Performance";
 import { Icon, mm, Panel, Slider, Toggle } from "./ui";
 
 const DEFAULT: TriggerSettings = { press: 10, release: 10, separate: false, quick_trigger: false, qt_press: 5, qt_release: 5 };
@@ -167,6 +168,7 @@ export function Trigger({ keys, onError }: { keys: Key[]; onError: (e: unknown) 
           </div>
         </Panel>
       </fieldset>
+      <Performance onError={onError} onReset={() => void load()} />
     </div>
   );
 }

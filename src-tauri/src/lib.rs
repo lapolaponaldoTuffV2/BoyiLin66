@@ -9,7 +9,7 @@ use std::sync::Mutex;
 use boyi_protocol::keymap::Keymap;
 use boyi_protocol::layout::{self, Key, KeyPos};
 use boyi_protocol::led::{KeyColors, LedConfig};
-use boyi_protocol::magnetic::{KeyTrigger, TriggerSettings};
+use boyi_protocol::magnetic::{KeyTrigger, Performance, TriggerSettings};
 use boyi_protocol::{device::DeviceInfo, Keyboard};
 use serde::{de::DeserializeOwned, Serialize};
 use tauri::{Manager, State};
@@ -122,6 +122,24 @@ fn set_trigger(
     conn.with(|kb| kb.set_trigger(&keys, &settings))
 }
 
+#[tauri::command]
+fn get_performance(conn: State<Connection>) -> Result<Performance, String> {
+    conn.with(Keyboard::performance)
+}
+
+#[tauri::command]
+fn set_performance(
+    conn: State<Connection>,
+    performance: Performance,
+) -> Result<Performance, String> {
+    conn.with(|kb| kb.set_performance(&performance))
+}
+
+#[tauri::command]
+fn reset_sensitivity(conn: State<Connection>) -> Result<(), String> {
+    conn.with(Keyboard::reset_sensitivity)
+}
+
 /// Calibrates one key; the user has 15 s to press it to the bottom. Runs off
 /// the main thread so the window stays responsive while waiting.
 #[tauri::command(async)]
@@ -183,6 +201,9 @@ pub fn run() {
             get_key_trigger,
             set_trigger,
             calibrate_key,
+            get_performance,
+            set_performance,
+            reset_sensitivity,
             get_keymap,
             factory_keymap,
             set_keymap,

@@ -109,8 +109,8 @@ bit *n* selects row *n*.
 | `02 mask[22]` | Put the masked keys in calibration mode; an empty mask leaves it. Ack `00` |
 | `07 row col` | Calibrate one key: reply `07 01` (running), then unsolicited `07 00` (done) or `07 02` (failed) once the key was pressed to the bottom |
 | `06` | Reset all keys to factory sensitivity, **unconfirmed** |
-| `09 01 value` | Rate of return, **unconfirmed** |
-| `0A 01 value` | Key debounce ("anti-shake"), **unconfirmed** |
+| `09 00` · `09 01 rate` | Read / write the USB report rate in kHz: `1`, `2`, `4` or `8`. Reply `09 rate`. Write **unconfirmed** |
+| `0A 00` · `0A 01 level` | Read / write key debounce, level `0`–`7`. Reply `0A level`. Write **unconfirmed** |
 
 `mode` flags: `0x01` = separate release point, `0x0C` = Quick Trigger. When
 the release point is not separate, send `release` equal to `press`.

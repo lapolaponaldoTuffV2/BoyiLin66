@@ -31,6 +31,7 @@ próprio teclado.
 | RGB por tecla (efeito Personalizado) | ✅ |
 | Macros: gravar teclas e pausas, repetir, liga/desliga, enquanto segurar (até 10) | ✅ |
 | Calibração por tecla | ✅ |
+| Anti-repique, taxa de relatório (1–8 kHz), restaurar sensibilidade | 🧪 beta |
 | Luz lateral, trava do Win, tempo de repouso | 🚧 |
 
 O teclado não informa o próprio mapa de teclas, então o app guarda uma cópia

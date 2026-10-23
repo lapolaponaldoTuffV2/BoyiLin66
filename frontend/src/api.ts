@@ -23,6 +23,9 @@ export type TriggerSettings = {
   qt_release: number;
 };
 
+/** Keyboard-wide timing: debounce level 0–7, report rate 1, 2, 4 or 8 kHz. */
+export type Performance = { debounce: number; report_rate_khz: number };
+
 export type MediaKey = "VolumeUp" | "VolumeDown" | "Mute" | "PlayPause" | "NextTrack" | "PreviousTrack"
   | "Stop" | "MediaPlayer" | "Calculator" | "Computer" | "Email" | "Browser" | "Search"
   | "BrightnessUp" | "BrightnessDown";
@@ -57,6 +60,9 @@ export const api = {
   setKeyColors: (colors: KeyColors) => invoke<void>("set_key_colors", { colors }),
   getKeyTrigger: (key: KeyPos) => invoke<TriggerSettings>("get_key_trigger", { key }),
   setTrigger: (keys: KeyPos[], settings: TriggerSettings) => invoke<void>("set_trigger", { keys, settings }),
+  getPerformance: () => invoke<Performance>("get_performance"),
+  setPerformance: (performance: Performance) => invoke<Performance>("set_performance", { performance }),
+  resetSensitivity: () => invoke<void>("reset_sensitivity"),
   /** Resolves true when the keyboard reports success; the user must press the key meanwhile. */
   calibrateKey: (key: KeyPos) => invoke<boolean>("calibrate_key", { key }),
   getKeymap: () => invoke<Keymap>("get_keymap"),
