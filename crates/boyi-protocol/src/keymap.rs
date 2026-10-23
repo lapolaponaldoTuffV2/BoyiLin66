@@ -7,9 +7,14 @@
 //! Only the base layer is written. The Fn layer holds factory functions
 //! (media, lighting controls) whose encoding is not mapped yet, and writing a
 //! layer replaces all of it.
+//!
+//! Advanced keys (Mod-Tap, Toggle, DKS) live in separate firmware slots; the
+//! keymap entry only points at a slot. [`write_frames`] assigns the slots and
+//! sends them before the layer, so a keymap is always written whole.
 
 use serde::{Deserialize, Serialize};
 
+use crate::advanced::{self, AdvancedKey};
 use crate::frame::Frame;
 use crate::layout::{KeyPos, KEYS, SLOTS};
 use crate::{Error, Result};
@@ -24,6 +29,7 @@ const KIND_FN: u8 = 0x01;
 const KIND_MEDIA: u8 = 0x07;
 const KIND_MOUSE: u8 = 0x12;
 const KIND_SHORTCUT: u8 = 0x13;
+const KIND_ADVANCED: u8 = 0x17;
 
 /// First and last HID usages of the modifier keys (Left Ctrl … Right GUI).
 const MODIFIER_FIRST: u8 = 0xe0;
@@ -99,6 +105,47 @@ impl MouseAction {
     }
 }
 
+/// A key or a shortcut: what advanced keys can send.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum KeyStroke {
+    /// A HID keyboard usage, modifiers (`0xE0`–`0xE7`) included.
+    Key { usage: u8 },
+    /// One or two modifiers held together with a key, e.g. Ctrl+C.
+    /// `modifiers` is a HID modifier bit mask (bit 0 = Left Ctrl … bit 7 = Right GUI).
+    Shortcut { modifiers: u8, usage: u8 },
+}
+
+impl KeyStroke {
+    pub(crate) fn encode(self) -> Result<[u8; ENTRY]> {
+        Ok(match self {
+            Self::Key { usage } => {
+                if usage == 0 {
+                    return Err(Error::OutOfRange("key usage"));
+                }
+                [KIND_KEY, usage, 0, 0]
+            }
+            Self::Shortcut { modifiers, usage } => {
+                let count = modifiers.count_ones();
+                if count == 0 || count > MAX_SHORTCUT_MODIFIERS {
+                    return Err(Error::OutOfRange("shortcut needs one or two modifiers"));
+                }
+                if usage == 0 || (MODIFIER_FIRST..=MODIFIER_LAST).contains(&usage) {
+                    return Err(Error::OutOfRange("shortcut key"));
+                }
+                let mut mods = (0..8)
+                    .filter(|bit| modifiers & (1 << bit) != 0)
+                    .map(|bit| MODIFIER_FIRST + bit);
+                match (mods.next(), mods.next()) {
+                    (Some(a), None) => [KIND_SHORTCUT, a, usage, 0],
+                    (Some(a), Some(b)) => [KIND_SHORTCUT, a, b, usage],
+                    _ => unreachable!("count checked above"),
+                }
+            }
+        })
+    }
+}
+
 /// What a key does when pressed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -122,41 +169,33 @@ pub enum KeyAction {
     Mouse {
         action: MouseAction,
     },
+    /// Mod-Tap, Toggle or DKS; stored in one of the firmware's advanced-key slots.
+    Advanced {
+        key: AdvancedKey,
+    },
 }
 
 impl KeyAction {
-    fn encode(self) -> Result<[u8; ENTRY]> {
+    /// `slot` is the advanced-key slot this entry was given, if it is one.
+    fn encode(self, slot: Option<u8>) -> Result<[u8; ENTRY]> {
         Ok(match self {
             Self::Disabled => [KIND_KEY, 0, 0, 0],
-            Self::Key { usage } => {
-                if usage == 0 {
-                    return Err(Error::OutOfRange("key usage"));
-                }
-                [KIND_KEY, usage, 0, 0]
-            }
+            Self::Key { usage } => KeyStroke::Key { usage }.encode()?,
             Self::Fn => [KIND_FN, 0, 0, 0],
             Self::Shortcut { modifiers, usage } => {
-                let count = modifiers.count_ones();
-                if count == 0 || count > MAX_SHORTCUT_MODIFIERS {
-                    return Err(Error::OutOfRange("shortcut needs one or two modifiers"));
-                }
-                if usage == 0 || (MODIFIER_FIRST..=MODIFIER_LAST).contains(&usage) {
-                    return Err(Error::OutOfRange("shortcut key"));
-                }
-                let mut mods = (0..8)
-                    .filter(|bit| modifiers & (1 << bit) != 0)
-                    .map(|bit| MODIFIER_FIRST + bit);
-                match (mods.next(), mods.next()) {
-                    (Some(a), None) => [KIND_SHORTCUT, a, usage, 0],
-                    (Some(a), Some(b)) => [KIND_SHORTCUT, a, b, usage],
-                    _ => unreachable!("count checked above"),
-                }
+                KeyStroke::Shortcut { modifiers, usage }.encode()?
             }
             Self::Media { key } => [KIND_MEDIA, key.code(), 0, 0],
             Self::Mouse { action } => {
                 let (wheel, value) = action.encode();
                 [KIND_MOUSE, wheel, value, 0]
             }
+            Self::Advanced { .. } => [
+                KIND_ADVANCED,
+                slot.expect("advanced entries get a slot"),
+                0,
+                0,
+            ],
         })
     }
 }
@@ -219,34 +258,73 @@ impl From<Keymap> for Vec<KeyAction> {
     }
 }
 
-/// The ten packets that write `map` as the base layer.
+/// Every packet that writes `map`: all advanced-key slots (unused ones
+/// emptied), then the ten base-layer packets that refer to them.
 pub(crate) fn write_frames(map: &Keymap) -> Result<Vec<Frame>> {
     map.check()?;
-    let entries = map
+    let advanced: Vec<&AdvancedKey> = map
         .0
         .iter()
-        .map(|a| a.encode())
-        .collect::<Result<Vec<_>>>()?;
-    Ok(entries
-        .chunks(SLOTS_PER_PACKET)
-        .enumerate()
-        .map(|(index, chunk)| {
-            let payload: Vec<u8> = chunk.iter().flatten().copied().collect();
-            Frame::new(CMD, BASE_LAYER, payload.len() as u8, &payload).with_index(index as u8)
+        .filter_map(|a| match a {
+            KeyAction::Advanced { key } => Some(key),
+            _ => None,
         })
-        .collect())
+        .collect();
+    if advanced.len() > advanced::SLOTS {
+        return Err(Error::OutOfRange("at most 40 advanced keys"));
+    }
+    let mut frames = (0..advanced::SLOTS)
+        .map(|slot| advanced::slot_frame(slot as u8, advanced.get(slot).copied()))
+        .collect::<Result<Vec<_>>>()?;
+
+    // Slots are handed out in matrix order, the same order used above.
+    let mut next_slot = 0u8;
+    let mut entries = Vec::with_capacity(SLOTS);
+    for action in &map.0 {
+        let slot = matches!(action, KeyAction::Advanced { .. }).then(|| {
+            next_slot += 1;
+            next_slot - 1
+        });
+        entries.push(action.encode(slot)?);
+    }
+    frames.extend(
+        entries
+            .chunks(SLOTS_PER_PACKET)
+            .enumerate()
+            .map(|(index, chunk)| {
+                let payload: Vec<u8> = chunk.iter().flatten().copied().collect();
+                Frame::new(CMD, BASE_LAYER, payload.len() as u8, &payload).with_index(index as u8)
+            }),
+    );
+    Ok(frames)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::advanced::{DksBinding, DksPoints, StageAction};
 
     const CAPS: KeyPos = KeyPos { row: 3, col: 0 };
+    const A: KeyStroke = KeyStroke::Key { usage: 0x04 };
+    const B: KeyStroke = KeyStroke::Key { usage: 0x05 };
+
+    /// The ten base-layer packets, after the 40 advanced-key slots.
+    fn layer(map: &Keymap) -> Vec<Frame> {
+        write_frames(map).unwrap().split_off(advanced::SLOTS)
+    }
+
+    fn enc(a: KeyAction) -> [u8; ENTRY] {
+        a.encode(None).unwrap()
+    }
 
     #[test]
     fn factory_layer_matches_hardware_test() {
-        let frames = write_frames(&Keymap::factory()).unwrap();
-        assert_eq!(frames.len(), 10);
+        let all = write_frames(&Keymap::factory()).unwrap();
+        assert_eq!(all.len(), advanced::SLOTS + 10);
+        assert!(all[..advanced::SLOTS]
+            .iter()
+            .all(|f| f.cmd() == advanced::CMD && f.0[6..].iter().all(|&b| b == 0)));
+        let frames = layer(&Keymap::factory());
         assert!(frames[..9].iter().all(|f| f.payload().len() == 56));
         assert_eq!(frames[9].payload().len(), 24);
         // Packet 1 starts at slot 14; Esc is slot 22 → entry 8.
@@ -261,15 +339,48 @@ mod tests {
         let mut map = Keymap::factory();
         map.set(CAPS, KeyAction::Key { usage: 0xe0 }).unwrap();
         // Caps is slot 66 → packet 4, entry 10.
-        assert_eq!(
-            &write_frames(&map).unwrap()[4].payload()[40..44],
-            &[0x00, 0xe0, 0, 0]
-        );
+        assert_eq!(&layer(&map)[4].payload()[40..44], &[0x00, 0xe0, 0, 0]);
+    }
+
+    #[test]
+    fn advanced_keys_get_slots_in_matrix_order() {
+        let mut map = Keymap::factory();
+        let toggle = AdvancedKey::Toggle { key: A };
+        let mod_tap = AdvancedKey::ModTap {
+            hold: A,
+            tap: B,
+            hold_ms: 200,
+        };
+        map.set(CAPS, KeyAction::Advanced { key: mod_tap }).unwrap();
+        map.set(
+            KeyPos { row: 1, col: 0 },
+            KeyAction::Advanced { key: toggle },
+        )
+        .unwrap();
+        let all = write_frames(&map).unwrap();
+        // Esc (slot 22) comes before Caps (slot 66), so it takes advanced slot 0.
+        assert_eq!(&all[0].0[6..8], &[0x03, 0x00]);
+        assert_eq!(&all[1].0[6..8], &[0x02, 0x00]);
+        assert!(all[2].0[6..].iter().all(|&b| b == 0));
+        let frames = layer(&map);
+        assert_eq!(&frames[1].payload()[32..36], &[0x17, 0, 0, 0]);
+        assert_eq!(&frames[4].payload()[40..44], &[0x17, 1, 0, 0]);
+    }
+
+    #[test]
+    fn rejects_more_than_40_advanced_keys() {
+        let mut map = Keymap::factory();
+        let toggle = KeyAction::Advanced {
+            key: AdvancedKey::Toggle { key: A },
+        };
+        for key in KEYS.iter().filter(|k| k.usage.is_some()).take(41) {
+            map.set(key.pos, toggle).unwrap();
+        }
+        assert!(write_frames(&map).is_err());
     }
 
     #[test]
     fn encodings() {
-        let enc = |a: KeyAction| a.encode().unwrap();
         assert_eq!(
             enc(KeyAction::Shortcut {
                 modifiers: 0x01,
@@ -286,9 +397,9 @@ mod tests {
         );
         assert_eq!(
             enc(KeyAction::Media {
-                key: MediaKey::VolumeUp
+                key: MediaKey::Mute
             }),
-            [0x07, 0x10, 0, 0]
+            [0x07, 0x12, 0, 0]
         );
         assert_eq!(
             enc(KeyAction::Mouse {
@@ -311,25 +422,20 @@ mod tests {
             .set(KeyPos { row: 5, col: 12 }, KeyAction::Disabled)
             .unwrap();
         assert!(write_frames(&no_fn).is_err());
-        assert!(KeyAction::Shortcut {
+        let bad = |a: KeyAction| a.encode(None).is_err();
+        assert!(bad(KeyAction::Shortcut {
             modifiers: 0x07,
             usage: 0x04
-        }
-        .encode()
-        .is_err());
-        assert!(KeyAction::Shortcut {
+        }));
+        assert!(bad(KeyAction::Shortcut {
             modifiers: 0,
             usage: 0x04
-        }
-        .encode()
-        .is_err());
-        assert!(KeyAction::Shortcut {
+        }));
+        assert!(bad(KeyAction::Shortcut {
             modifiers: 1,
             usage: 0xe1
-        }
-        .encode()
-        .is_err());
-        assert!(KeyAction::Key { usage: 0 }.encode().is_err());
+        }));
+        assert!(bad(KeyAction::Key { usage: 0 }));
         assert!(Keymap::try_from(vec![KeyAction::Disabled; 10]).is_err());
     }
 
@@ -343,8 +449,23 @@ mod tests {
             },
         )
         .unwrap();
+        let dks = AdvancedKey::Dks {
+            points: DksPoints::DEFAULT,
+            bindings: [
+                Some(DksBinding {
+                    key: A,
+                    stages: [StageAction::Tap; 4],
+                }),
+                None,
+                None,
+                None,
+            ],
+        };
+        map.set(KeyPos { row: 1, col: 0 }, KeyAction::Advanced { key: dks })
+            .unwrap();
         let json = serde_json::to_string(&map).unwrap();
         assert!(json.contains(r#"{"kind":"media","key":"Mute"}"#));
+        assert!(json.contains(r#"{"kind":"advanced","key":{"type":"dks","points":{"press":15"#));
         assert_eq!(serde_json::from_str::<Keymap>(&json).unwrap(), map);
     }
 }

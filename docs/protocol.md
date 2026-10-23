@@ -134,6 +134,34 @@ There is no way to read a layer back.
 | `13 mod usage 00` · `13 mod1 mod2 usage` | Shortcut; modifiers as HID usages, **unconfirmed** |
 | `07 code 00 00` | Media key, **unconfirmed** (codes in `keymap.rs`) |
 | `12 00 buttons 00` · `12 01 step 00` | Mouse button mask / wheel step, **unconfirmed** |
+| `17 slot 00 00` | Advanced key stored in slot `slot` (see `0x22`) |
+
+### `0x22` Advanced keys
+
+40 slots; byte 2 = slot, length `0x32`. An all-zero payload empties a slot.
+Each write is acknowledged with payload `00`. Write the slots before the
+keymap that refers to them. Actions inside use the 4-byte key/shortcut
+encoding from `0x18`.
+
+| Payload | Function |
+|---|---|
+| `02 hold[4] tap[4] time` | Mod-Tap: `tap` when tapped, `hold` while held longer than `time` × 10 ms |
+| `03 action[4]` | Toggle: first press holds `action` down, the next press releases it |
+| `01 points[4] (action[4] stages[4]) × 4` | DKS |
+
+**DKS.** `points` are four depths in 0.1 mm: press, bottom, leaving the
+bottom, release (the official software uses 1.5 / 3.6 / 3.6 / 1.5 mm). Each of
+the four bindings is an action followed by one byte per stage:
+
+| Value | At this stage |
+|---|---|
+| `0` | Nothing |
+| `1` | Tap (press and release) |
+| `2` | Press, release at the next stage |
+
+A `3` is also accepted but behaves like `2`, with a release and re-press at
+the stage boundary. A press that never reaches the bottom only crosses the
+first and last stages.
 
 ### `0x14` System
 
@@ -142,6 +170,6 @@ Payload starts with a sub-command: `01` factory reset, `02` Windows-key lock,
 
 ## Not covered yet
 
-Macros, DKS / Mod-Tap / Toggle keys, calibration, Win-lock and
+Macros, calibration, Win-lock and
 sleep timer, side light writes, the Fn layer. Firmware updates are
 deliberately out of scope.

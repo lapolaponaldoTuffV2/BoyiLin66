@@ -15,6 +15,7 @@
 //!
 //! See `docs/protocol.md` in the repository for the wire format.
 
+pub mod advanced;
 pub mod device;
 pub mod frame;
 pub mod keymap;
