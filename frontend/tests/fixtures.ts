@@ -15,7 +15,7 @@ export const test = base.extend({
         fail: new URL(location.href).searchParams.get("fail") || "",
         hold: "", release: () => {}, calls: [] as { cmd: string; args: any }[],
         keymap: structuredClone(factory),
-        led: { mode: "Static", brightness: 4, speed: 2, color: [255, 0, 0] },
+        led: { mode: "Static", brightness: 4, speed: 2, color: [255, 0, 0], options: [0, 0, 0, 7, 0, 0] },
         performance: { debounce: 3, report_rate_khz: 8 },
         sleep: { light_s: 60, keyboard_s: 1800, never: false },
         winLock: { windows: false, shift_tab: false, alt_tab: false, alt_f4: false },

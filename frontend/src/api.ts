@@ -9,7 +9,8 @@ export const LED_MODES = [
   "Twinkle", "Custom", "Cross", "SpeedRespond", "AutoRipple", "Striation", "Fireworks", "MusicRhythm",
 ] as const;
 export type LedMode = (typeof LED_MODES)[number];
-export type LedConfig = { mode: LedMode; brightness: number; speed: number; color: [number, number, number] };
+/** `options` are six effect bytes of unknown meaning, sent back as read. */
+export type LedConfig = { mode: LedMode; brightness: number; speed: number; color: [number, number, number]; options: number[] };
 export const SIDE_MODES = ["Static", "Breath", "Wave", "Collision", "Neon", "Off"] as const;
 /** `options` are six effect bytes of unknown meaning, sent back as read. */
 export type SideLight = {

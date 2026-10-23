@@ -1,8 +1,9 @@
 //! Main keyboard backlight (command `0x07`), side light (command `0x08`) and
 //! the per-key colours of the Custom effect (command `0x09`).
 //!
-//! Payload: `mode, brightness, speed, r, g, b, <6 effect bytes>`.
-//! The meaning of the six effect bytes is not known yet; writes send zeros.
+//! Payload: `mode, brightness, speed, r, g, b, <6 option bytes>`. The option
+//! bytes (direction, colour mode, …) are not mapped yet; like the official
+//! software, writes send back the ones last read.
 
 use serde::{Deserialize, Serialize};
 
@@ -12,7 +13,7 @@ use crate::{Error, Result};
 
 pub const CMD: u8 = 0x07;
 const WRITE_LEN: u8 = 0x0e;
-pub(crate) const REPLY_LEN: usize = 6;
+pub(crate) const REPLY_LEN: usize = 12;
 pub const MAX_BRIGHTNESS: u8 = 4;
 pub const MAX_SPEED: u8 = 4;
 
@@ -93,6 +94,8 @@ pub struct LedConfig {
     pub brightness: u8,
     pub speed: u8,
     pub color: [u8; 3],
+    /// Six option bytes of unknown meaning, written back as read.
+    pub options: [u8; 6],
 }
 
 /// Side light effects, with the ids the firmware uses.
@@ -256,12 +259,9 @@ pub(crate) fn write_frame(cfg: &LedConfig) -> Result<Frame> {
         return Err(Error::OutOfRange("speed"));
     }
     let [r, g, b] = cfg.color;
-    Ok(Frame::new(
-        CMD,
-        0,
-        WRITE_LEN,
-        &[cfg.mode.id(), cfg.brightness, cfg.speed, r, g, b],
-    ))
+    let mut payload = vec![cfg.mode.id(), cfg.brightness, cfg.speed, r, g, b];
+    payload.extend(cfg.options);
+    Ok(Frame::new(CMD, 0, WRITE_LEN, &payload))
 }
 
 pub(crate) fn parse(reply: &Frame) -> Result<LedConfig> {
@@ -274,6 +274,7 @@ pub(crate) fn parse(reply: &Frame) -> Result<LedConfig> {
         brightness: p[1],
         speed: p[2],
         color: [p[3], p[4], p[5]],
+        options: p[6..12].try_into().expect("reply length checked"),
     })
 }
 
@@ -297,7 +298,8 @@ mod tests {
                 mode: LedMode::Radar,
                 brightness: 2,
                 speed: 0,
-                color: [0xff, 0x74, 0xd9]
+                color: [0xff, 0x74, 0xd9],
+                options: [0, 0, 0, 7, 0, 0],
             }
         );
         let ripple = parse(&reply(&[
@@ -314,12 +316,19 @@ mod tests {
             brightness: 4,
             speed: 2,
             color: [0xff, 0, 0],
+            options: [0; 6],
         };
         let f = write_frame(&cfg).unwrap();
         assert_eq!(
             &f.0[..12],
             &[0x01, 0x07, 0x00, 0, 0, 0x0e, 0x00, 0x04, 0x02, 0xff, 0x00, 0x00]
         );
+        // Option bytes go back out where they were read.
+        let radar = parse(&reply(&[
+            0x04, 0x02, 0x00, 0xff, 0x74, 0xd9, 0, 0, 0, 7, 0, 0,
+        ]))
+        .unwrap();
+        assert_eq!(&write_frame(&radar).unwrap().0[12..18], &[0, 0, 0, 7, 0, 0]);
     }
 
     #[test]
@@ -329,6 +338,7 @@ mod tests {
             brightness: 5,
             speed: 0,
             color: [0; 3],
+            options: [0; 6],
         };
         assert!(write_frame(&cfg).is_err());
     }

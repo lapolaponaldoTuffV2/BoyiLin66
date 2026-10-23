@@ -25,7 +25,7 @@ from the app. Wire details are in [`protocol.md`](protocol.md).
 In priority order. Each item: decode → confirm on hardware → crate module with
 tests of the captured bytes → Tauri command → UI → update `protocol.md`.
 
-1. **Lighting extras**: the six effect option bytes of `0x07`.
+1. **Lighting options**: give the six `0x07`/`0x08` option bytes (direction, colour mode) their own controls; today they are kept as read.
 2. **Factory reset** (`0x14`): decoded, to be tested with the owner present.
 3. **Packaging**: AppImage, `.deb`, `.rpm`, install script.
 

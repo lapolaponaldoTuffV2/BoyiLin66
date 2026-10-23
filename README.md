@@ -81,10 +81,13 @@ AGENTS.md              guia para quem for contribuir (pessoas ou agentes)
 A crate `boyi-protocol` não depende do Tauri e pode ser usada sozinha:
 
 ```rust
-use boyi_protocol::{Keyboard, led::{LedConfig, LedMode}};
+use boyi_protocol::{Keyboard, led::LedMode};
 
 let kb = Keyboard::open_first()?;
-kb.set_led(&LedConfig { mode: LedMode::Static, brightness: 4, speed: 2, color: [255, 0, 0] })?;
+let mut led = kb.led()?;          // lê o estado atual, incluindo as opções do efeito
+led.mode = LedMode::Static;
+led.color = [255, 0, 0];
+kb.set_led(&led)?;
 ```
 
 Para ver o estado do teclado sem alterar nada:

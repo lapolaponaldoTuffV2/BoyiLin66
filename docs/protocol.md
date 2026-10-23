@@ -69,7 +69,7 @@ Read: byte 2 = `1`, empty payload. Reply payload (length 12):
 | 1 | Brightness, 0–4 |
 | 2 | Speed, 0–4 |
 | 3–5 | Colour, R G B |
-| 6–11 | Effect options, **unconfirmed** |
+| 6–11 | Effect options. The official software stores them as direction, colour mode, on/off and an update counter, and writes back the bytes it last read |
 
 Write: byte 2 = `0`, length `0x0E`, same payload layout. The keyboard does not
 reply; read it back.

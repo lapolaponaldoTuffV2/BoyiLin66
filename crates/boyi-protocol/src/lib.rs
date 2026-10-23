@@ -6,10 +6,13 @@
 //! dependencies.
 //!
 //! ```no_run
-//! use boyi_protocol::{Keyboard, led::{LedConfig, LedMode}};
+//! use boyi_protocol::{Keyboard, led::LedMode};
 //!
 //! let kb = Keyboard::open_first()?;
-//! kb.set_led(&LedConfig { mode: LedMode::Static, brightness: 4, speed: 2, color: [255, 0, 0] })?;
+//! let mut led = kb.led()?;
+//! led.mode = LedMode::Static;
+//! led.color = [255, 0, 0];
+//! kb.set_led(&led)?;
 //! # Ok::<(), boyi_protocol::Error>(())
 //! ```
 //!
