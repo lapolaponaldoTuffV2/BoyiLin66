@@ -21,6 +21,7 @@ pub mod frame;
 pub mod keymap;
 pub mod layout;
 pub mod led;
+pub mod macros;
 pub mod magnetic;
 
 pub use device::Keyboard;

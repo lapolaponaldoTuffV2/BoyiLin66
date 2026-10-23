@@ -36,9 +36,13 @@ export type DksBinding = { key: KeyStroke; stages: StageAction[] };
 export type AdvancedKey = { type: "mod_tap"; hold: KeyStroke; tap: KeyStroke; hold_ms: number }
   | { type: "toggle"; key: KeyStroke }
   | { type: "dks"; points: DksPoints; bindings: (DksBinding | null)[] };
+export type Playback = { type: "once" } | { type: "repeat"; count: number } | { type: "toggle" } | { type: "while_held" };
+/** A key press or release; `delay_ms` is the pause after it (after the last step, between repeats). */
+export type MacroStep = { usage: number; down: boolean; delay_ms: number };
+export type MacroAction = { kind: "macro"; playback: Playback; steps: MacroStep[] };
 export type KeyAction = { kind: "disabled" } | KeyStroke | { kind: "fn" }
   | { kind: "media"; key: MediaKey } | { kind: "mouse"; action: MouseAction }
-  | { kind: "advanced"; key: AdvancedKey };
+  | { kind: "advanced"; key: AdvancedKey } | MacroAction;
 /** 132 matrix slots, including empty positions, in row-major order. */
 export type Keymap = KeyAction[];
 

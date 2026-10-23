@@ -1,4 +1,4 @@
-//! Writes the factory base layer, undoing every key remap.
+//! Writes the factory base layer, undoing every key remap, macro and advanced key.
 //!
 //! ```sh
 //! cargo run -p boyi-protocol --example restore_keymap

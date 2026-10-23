@@ -255,8 +255,78 @@ test("advanced types are disabled once all 40 slots are used", async ({ page }) 
   }
 });
 
+test("macro recording captures presses, releases and pauses; Esc stops and releases held keys", async ({ page }) => {
+  await openRemap(page);
+  await page.getByRole("button", { name: "Caps", exact: true }).click();
+  await page.getByLabel("Tipo de ação").selectOption("macro");
+  await expect(page.getByText("Macros no mapa: 1 de 10.")).toBeVisible();
+  await expect(page.getByLabel("Tecla do passo 1")).toHaveValue("57");
+  await page.getByRole("button", { name: "Gravar teclas" }).click();
+  await expect(page.getByLabel("Tecla do passo 1")).toHaveCount(0);
+  await page.keyboard.down("a");
+  await page.waitForTimeout(150);
+  await page.keyboard.up("a");
+  await page.keyboard.press("b");
+  await page.keyboard.down("c");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "Gravar teclas" })).toBeVisible();
+  await expect(page.getByText("6 de 62 passos.", { exact: false })).toBeVisible();
+  await page.getByLabel("Reprodução").selectOption("repeat");
+  await page.getByLabel("Repetições (1–255)").fill("3");
+  await page.getByRole("button", { name: "Aplicar", exact: true }).click();
+  await expect(page.getByText("Mapa aplicado e cópia local salva.")).toBeVisible();
+  const saved = await page.evaluate(() => (window as any).__testDevice.keymap[66]);
+  expect(saved.playback).toEqual({ type: "repeat", count: 3 });
+  expect(saved.steps.map((step: any) => [step.usage, step.down])).toEqual([
+    [4, true], [4, false], [5, true], [5, false], [6, true], [6, false],
+  ]);
+  expect(saved.steps[0].delay_ms).toBeGreaterThanOrEqual(100);
+  expect(saved.steps[5].delay_ms).toBe(0);
+  await expect(page.getByRole("button", { name: "Caps", exact: true })).toHaveAccessibleDescription("↦ Macro: A, B, C");
+  // The saved macro compares equal to the draft, so leaving asks nothing.
+  await page.getByRole("button", { name: "Iluminação", exact: true }).click();
+  await expect(page.getByRole("radio", { name: "Estático", exact: true })).toBeChecked();
+});
+
+test("macro steps can be edited by hand and unbalanced steps block apply", async ({ page }) => {
+  await openRemap(page);
+  await page.getByRole("button", { name: "Caps", exact: true }).click();
+  await page.getByLabel("Tipo de ação").selectOption("macro");
+  await page.getByLabel("Ação do passo 2").selectOption("down");
+  await expect(page.getByRole("alert")).toContainText("pressionada e depois solta");
+  await expect(page.getByRole("button", { name: "Aplicar", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Remover passo 2" }).click();
+  await expect(page.getByRole("alert")).toContainText("ainda pressionada");
+  await page.getByRole("button", { name: "Remover passo 1" }).click();
+  await expect(page.getByRole("alert")).toContainText("1 a 62 passos");
+  await page.getByRole("button", { name: "Adicionar toque" }).click();
+  await page.getByLabel("Tecla do passo 1").selectOption("41");
+  await page.getByLabel("Tecla do passo 2").selectOption("41");
+  await page.getByLabel("Pausa depois do passo 1, em milissegundos").fill("300");
+  await page.getByLabel("Reprodução").selectOption("while_held");
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await page.getByRole("button", { name: "Aplicar", exact: true }).click();
+  await expect(page.getByText("Mapa aplicado e cópia local salva.")).toBeVisible();
+  expect(await page.evaluate(() => (window as any).__testDevice.keymap[66])).toEqual({ kind: "macro",
+    playback: { type: "while_held" },
+    steps: [{ usage: 41, down: true, delay_ms: 300 }, { usage: 41, down: false, delay_ms: 10 }] });
+});
+
+test("the macro type is disabled once all 10 macro slots are used", async ({ page }) => {
+  await page.evaluate(() => {
+    const map = (window as any).__testDevice.keymap;
+    map.flatMap((action: any, i: number) => action.kind === "key" && i !== 66 ? [i] : []).slice(0, 10)
+      .forEach((i: number) => { map[i] = { kind: "macro", playback: { type: "once" },
+        steps: [{ usage: 4, down: true, delay_ms: 10 }, { usage: 4, down: false, delay_ms: 10 }] }; });
+  });
+  await openRemap(page);
+  await page.getByRole("button", { name: "Caps", exact: true }).click();
+  await expect(page.getByText("Macros no mapa: 10 de 10.")).toBeVisible();
+  await expect(page.getByLabel("Tipo de ação").locator('option[value="macro"]')).toHaveAttribute("disabled");
+});
+
 for (const invalid of ["duplicate Fn", "missing Fn", "Fn in empty slot", "short map", "invalid media",
-  "41 advanced keys", "DKS hold at release"]) {
+  "41 advanced keys", "DKS hold at release", "11 macros", "macro leaves a key pressed"]) {
   test(`invalid local copy is blocked and can be restored: ${invalid}`, async ({ page }) => {
     await page.evaluate((kind) => {
       const map = (window as any).__testDevice.keymap;
@@ -270,6 +340,11 @@ for (const invalid of ["duplicate Fn", "missing Fn", "Fn in empty slot", "short 
       if (kind === "DKS hold at release") map[22] = { kind: "advanced", key: { type: "dks",
         points: { press: 15, bottom: 36, bottom_release: 36, release: 15 },
         bindings: [{ key: { kind: "key", usage: 4 }, stages: ["none", "none", "none", "hold"] }, null, null, null] } };
+      const tap = { kind: "macro", playback: { type: "once" },
+        steps: [{ usage: 4, down: true, delay_ms: 10 }, { usage: 4, down: false, delay_ms: 10 }] };
+      if (kind === "11 macros") map.flatMap((action: any, i: number) => action.kind === "key" ? [i] : []).slice(0, 11)
+        .forEach((i: number) => { map[i] = tap; });
+      if (kind === "macro leaves a key pressed") map[22] = { ...tap, steps: tap.steps.slice(0, 1) };
     }, invalid);
     await page.getByRole("button", { name: "Teclas", exact: true }).click();
     await expect(page.getByRole("alert")).toBeVisible();

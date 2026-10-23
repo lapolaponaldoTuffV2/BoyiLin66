@@ -29,7 +29,7 @@ próprio teclado.
 | Remapeamento: botões e rolagem do mouse | 🧪 beta |
 | DKS, Mod-Tap e Toggle (até 40 teclas) | ✅ |
 | RGB por tecla | 🚧 protocolo decodificado |
-| Macros | 🚧 |
+| Macros: gravar teclas e pausas, repetir, liga/desliga, enquanto segurar (até 10) | ✅ |
 | Calibração | 🚧 |
 | Luz lateral, trava do Win, tempo de repouso | 🚧 |
 

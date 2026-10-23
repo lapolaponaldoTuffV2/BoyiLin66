@@ -160,7 +160,8 @@ impl Keyboard {
         }
     }
 
-    /// Replaces the base layer. Each packet is acknowledged with status `0`.
+    /// Replaces the base layer and every macro and advanced-key slot. Each
+    /// packet is acknowledged with status `0`.
     ///
     /// Packets go out one at a time, each waiting for its acknowledgement, so
     /// a reply always belongs to the last packet sent. A failure part-way

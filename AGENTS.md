@@ -9,7 +9,7 @@ Start with [`docs/ROADMAP.md`](docs/ROADMAP.md) (what is done and what is next) 
 ## Layout
 
 - `crates/boyi-protocol` — protocol and hidraw access. No Tauri; std + serde + thiserror only
-  (serde_json for tests). One module per feature: `led`, `magnetic`, `keymap`, `advanced`,
+  (serde_json for tests). One module per feature: `led`, `magnetic`, `keymap`, `advanced`, `macros`,
   `layout` (66 keys, matrix positions, default HID usages), `frame`, `device` (`Keyboard`).
 - `crates/boyi-protocol/examples` — `info` (read-only status), `restore_keymap` (factory layout).
 - `src-tauri` — thin Tauri commands over the crate. The keyboard cannot report its keymap, so
@@ -25,7 +25,7 @@ Start with [`docs/ROADMAP.md`](docs/ROADMAP.md) (what is done and what is next) 
 - Every byte sequence confirmed on hardware gets a unit test using the captured bytes.
   Unconfirmed encodings are marked as such in `protocol.md` and in the UI ("beta").
 - Validate inputs at the crate boundary (`Error::OutOfRange`); never send unvalidated values.
-- Keymap writes replace the whole base layer and every advanced-key slot. A keymap must keep
+- Keymap writes replace the whole base layer and every macro and advanced-key slot. A keymap must keep
   exactly one Fn on a physical key; empty matrix slots stay disabled.
 - Never implement firmware update or serial-number writing.
 - This project is clean-room: do not add code, assets or text from the official Windows software.

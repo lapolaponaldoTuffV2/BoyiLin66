@@ -8,15 +8,16 @@
 //! (media, lighting controls) whose encoding is not mapped yet, and writing a
 //! layer replaces all of it.
 //!
-//! Advanced keys (Mod-Tap, Toggle, DKS) live in separate firmware slots; the
-//! keymap entry only points at a slot. [`write_frames`] assigns the slots and
-//! sends them before the layer, so a keymap is always written whole.
+//! Macros and advanced keys (Mod-Tap, Toggle, DKS) live in separate firmware
+//! slots; the keymap entry only points at a slot. [`write_frames`] assigns the
+//! slots and sends them before the layer, so a keymap is always written whole.
 
 use serde::{Deserialize, Serialize};
 
 use crate::advanced::{self, AdvancedKey};
 use crate::frame::Frame;
 use crate::layout::{KeyPos, KEYS, SLOTS};
+use crate::macros::{self, Macro};
 use crate::{Error, Result};
 
 pub const CMD: u8 = 0x18;
@@ -27,6 +28,7 @@ const ENTRY: usize = 4;
 const KIND_KEY: u8 = 0x00;
 const KIND_FN: u8 = 0x01;
 const KIND_MEDIA: u8 = 0x07;
+const KIND_MACRO: u8 = 0x10;
 const KIND_MOUSE: u8 = 0x12;
 const KIND_SHORTCUT: u8 = 0x13;
 const KIND_ADVANCED: u8 = 0x17;
@@ -147,7 +149,7 @@ impl KeyStroke {
 }
 
 /// What a key does when pressed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum KeyAction {
     Disabled,
@@ -173,12 +175,14 @@ pub enum KeyAction {
     Advanced {
         key: AdvancedKey,
     },
+    /// Plays a macro; stored in one of the firmware's macro slots.
+    Macro(Macro),
 }
 
 impl KeyAction {
-    /// `slot` is the advanced-key slot this entry was given, if it is one.
-    fn encode(self, slot: Option<u8>) -> Result<[u8; ENTRY]> {
-        Ok(match self {
+    /// `slot` is the advanced-key or macro slot this entry was given, if it is one.
+    fn encode(&self, slot: Option<u8>) -> Result<[u8; ENTRY]> {
+        Ok(match *self {
             Self::Disabled => [KIND_KEY, 0, 0, 0],
             Self::Key { usage } => KeyStroke::Key { usage }.encode()?,
             Self::Fn => [KIND_FN, 0, 0, 0],
@@ -196,6 +200,7 @@ impl KeyAction {
                 0,
                 0,
             ],
+            Self::Macro(_) => [KIND_MACRO, 0, slot.expect("macro entries get a slot"), 0],
         })
     }
 }
@@ -220,7 +225,7 @@ impl Keymap {
 
     /// The action at `pos`, or `None` outside the matrix.
     pub fn get(&self, pos: KeyPos) -> Option<KeyAction> {
-        pos.in_matrix().then(|| self.0[pos.index()])
+        pos.in_matrix().then(|| self.0[pos.index()].clone())
     }
 
     pub fn set(&mut self, pos: KeyPos, action: KeyAction) -> Result<()> {
@@ -243,10 +248,10 @@ impl Keymap {
         let mut fn_keys = 0;
         for (index, action) in self.0.iter().enumerate() {
             let physical = KEYS.iter().any(|k| k.pos.index() == index);
-            if !physical && *action != KeyAction::Disabled {
+            if !physical && action != &KeyAction::Disabled {
                 return Err(Error::OutOfRange("only physical keys can be assigned"));
             }
-            fn_keys += usize::from(*action == KeyAction::Fn);
+            fn_keys += usize::from(action == &KeyAction::Fn);
         }
         if fn_keys != 1 {
             return Err(Error::OutOfRange("keymap must have exactly one Fn key"));
@@ -274,10 +279,21 @@ impl From<Keymap> for Vec<KeyAction> {
     }
 }
 
-/// Every packet that writes `map`: all advanced-key slots (unused ones
-/// emptied), then the ten base-layer packets that refer to them.
+/// Every packet that writes `map`: all macro and advanced-key slots (unused
+/// ones emptied), then the ten base-layer packets that refer to them.
 pub(crate) fn write_frames(map: &Keymap) -> Result<Vec<Frame>> {
     map.check()?;
+    let macros: Vec<&Macro> = map
+        .0
+        .iter()
+        .filter_map(|a| match a {
+            KeyAction::Macro(m) => Some(m),
+            _ => None,
+        })
+        .collect();
+    if macros.len() > macros::SLOTS {
+        return Err(Error::OutOfRange("at most 10 macro keys"));
+    }
     let advanced: Vec<&AdvancedKey> = map
         .0
         .iter()
@@ -289,17 +305,29 @@ pub(crate) fn write_frames(map: &Keymap) -> Result<Vec<Frame>> {
     if advanced.len() > advanced::SLOTS {
         return Err(Error::OutOfRange("at most 40 advanced keys"));
     }
-    let mut frames = (0..advanced::SLOTS)
-        .map(|slot| advanced::slot_frame(slot as u8, advanced.get(slot).copied()))
-        .collect::<Result<Vec<_>>>()?;
+    let mut frames = Vec::new();
+    for slot in 0..macros::SLOTS {
+        frames.extend(macros::slot_frames(slot as u8, macros.get(slot).copied())?);
+    }
+    for slot in 0..advanced::SLOTS {
+        frames.push(advanced::slot_frame(
+            slot as u8,
+            advanced.get(slot).copied(),
+        )?);
+    }
 
     // Slots are handed out in matrix order, the same order used above.
-    let mut next_slot = 0u8;
+    let (mut next_advanced, mut next_macro) = (0u8, 0u8);
     let mut entries = Vec::with_capacity(SLOTS);
     for action in &map.0 {
-        let slot = matches!(action, KeyAction::Advanced { .. }).then(|| {
-            next_slot += 1;
-            next_slot - 1
+        let next = match action {
+            KeyAction::Advanced { .. } => Some(&mut next_advanced),
+            KeyAction::Macro(_) => Some(&mut next_macro),
+            _ => None,
+        };
+        let slot = next.map(|n| {
+            *n += 1;
+            *n - 1
         });
         entries.push(action.encode(slot)?);
     }
@@ -319,14 +347,31 @@ pub(crate) fn write_frames(map: &Keymap) -> Result<Vec<Frame>> {
 mod tests {
     use super::*;
     use crate::advanced::{DksBinding, DksPoints, StageAction};
+    use crate::macros::{MacroStep, Playback};
 
     const CAPS: KeyPos = KeyPos { row: 3, col: 0 };
     const A: KeyStroke = KeyStroke::Key { usage: 0x04 };
     const B: KeyStroke = KeyStroke::Key { usage: 0x05 };
 
-    /// The ten base-layer packets, after the 40 advanced-key slots.
+    const MACRO_FRAMES: usize = macros::SLOTS * macros::PACKETS;
+
+    /// The ten base-layer packets, after the macro and advanced-key slots.
     fn layer(map: &Keymap) -> Vec<Frame> {
-        write_frames(map).unwrap().split_off(advanced::SLOTS)
+        write_frames(map)
+            .unwrap()
+            .split_off(MACRO_FRAMES + advanced::SLOTS)
+    }
+
+    fn tap_macro(usage: u8) -> KeyAction {
+        let step = |down| MacroStep {
+            usage,
+            down,
+            delay_ms: 10,
+        };
+        KeyAction::Macro(Macro {
+            playback: Playback::Once,
+            steps: vec![step(true), step(false)],
+        })
     }
 
     fn enc(a: KeyAction) -> [u8; ENTRY] {
@@ -336,10 +381,12 @@ mod tests {
     #[test]
     fn factory_layer_matches_hardware_test() {
         let all = write_frames(&Keymap::factory()).unwrap();
-        assert_eq!(all.len(), advanced::SLOTS + 10);
-        assert!(all[..advanced::SLOTS]
+        assert_eq!(all.len(), MACRO_FRAMES + advanced::SLOTS + 10);
+        let empty = |f: &Frame, cmd| f.cmd() == cmd && f.0[6..].iter().all(|&b| b == 0);
+        assert!(all[..MACRO_FRAMES].iter().all(|f| empty(f, macros::CMD)));
+        assert!(all[MACRO_FRAMES..][..advanced::SLOTS]
             .iter()
-            .all(|f| f.cmd() == advanced::CMD && f.0[6..].iter().all(|&b| b == 0)));
+            .all(|f| empty(f, advanced::CMD)));
         let frames = layer(&Keymap::factory());
         assert!(frames[..9].iter().all(|f| f.payload().len() == 56));
         assert_eq!(frames[9].payload().len(), 24);
@@ -373,7 +420,7 @@ mod tests {
             KeyAction::Advanced { key: toggle },
         )
         .unwrap();
-        let all = write_frames(&map).unwrap();
+        let all = write_frames(&map).unwrap().split_off(MACRO_FRAMES);
         // Esc (slot 22) comes before Caps (slot 66), so it takes advanced slot 0.
         assert_eq!(&all[0].0[6..8], &[0x03, 0x00]);
         assert_eq!(&all[1].0[6..8], &[0x02, 0x00]);
@@ -390,7 +437,40 @@ mod tests {
             key: AdvancedKey::Toggle { key: A },
         };
         for key in KEYS.iter().filter(|k| k.usage.is_some()).take(41) {
-            map.set(key.pos, toggle).unwrap();
+            map.set(key.pos, toggle.clone()).unwrap();
+        }
+        assert!(write_frames(&map).is_err());
+    }
+
+    #[test]
+    fn macro_keys_get_slots_in_matrix_order() {
+        let mut map = Keymap::factory();
+        map.set(CAPS, tap_macro(0x68)).unwrap();
+        map.set(KeyPos { row: 1, col: 0 }, tap_macro(0x69)).unwrap();
+        let all = write_frames(&map).unwrap();
+        // Esc (slot 22) comes before Caps (slot 66), so it takes macro slot 0.
+        assert_eq!(
+            &all[0].0[..16],
+            &[1, 0x19, 0, 0, 0, 0x3a, 0, 0, 0, 8, 0, 1, 0, 0, 0x69, 0x10]
+        );
+        assert_eq!(
+            &all[macros::PACKETS].0[..16],
+            &[1, 0x19, 1, 0, 0, 0x3a, 0, 0, 0, 8, 0, 1, 0, 0, 0x68, 0x10]
+        );
+        assert!(all[2 * macros::PACKETS..MACRO_FRAMES]
+            .iter()
+            .all(|f| f.0[6..].iter().all(|&b| b == 0)));
+        let frames = layer(&map);
+        // Matches the hardware tests: `10 00 slot 00`.
+        assert_eq!(&frames[1].payload()[32..36], &[0x10, 0, 0, 0]);
+        assert_eq!(&frames[4].payload()[40..44], &[0x10, 0, 1, 0]);
+    }
+
+    #[test]
+    fn rejects_more_than_10_macro_keys() {
+        let mut map = Keymap::factory();
+        for key in KEYS.iter().filter(|k| k.usage.is_some()).take(11) {
+            map.set(key.pos, tap_macro(0x68)).unwrap();
         }
         assert!(write_frames(&map).is_err());
     }
@@ -539,6 +619,22 @@ mod tests {
         assert!(json.contains(r#"{"kind":"media","key":"Mute"}"#));
         assert!(json.contains(r#"{"kind":"advanced","key":{"type":"dks","points":{"press":15"#));
         assert_eq!(serde_json::from_str::<Keymap>(&json).unwrap(), map);
+    }
+
+    #[test]
+    fn macro_json() {
+        let json = r#"{"kind":"macro","playback":{"type":"repeat","count":3},
+            "steps":[{"usage":104,"down":true,"delay_ms":300},{"usage":104,"down":false,"delay_ms":0}]}"#;
+        let action: KeyAction = serde_json::from_str(json).unwrap();
+        let KeyAction::Macro(m) = &action else {
+            panic!("not a macro: {action:?}")
+        };
+        assert_eq!(m.playback, Playback::Repeat { count: 3 });
+        assert_eq!(m.steps[0].delay_ms, 300);
+        let back = serde_json::to_string(&action).unwrap();
+        assert!(
+            back.starts_with(r#"{"kind":"macro","playback":{"type":"repeat","count":3},"steps":["#)
+        );
     }
 
     /// The advanced keys the frontend tests expect `set_keymap` to receive.

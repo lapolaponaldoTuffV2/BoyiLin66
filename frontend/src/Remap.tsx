@@ -2,9 +2,10 @@ import { ReactNode, useEffect, useId, useRef, useState } from "react";
 import { AdvancedKey, api, DksBinding, DksPoints, Key, KeyAction, Keymap, KeyStroke, MediaKey, MouseAction, posId, StageAction } from "./api";
 import { Keyboard } from "./Keyboard";
 import {
-  actionName, ADVANCED_SLOTS, DKS_STAGES, KEY_OPTIONS, keyIndex, keymapProblem, MEDIA_NAMES, MODIFIERS, modifierCount,
-  MOUSE_NAMES, sameAction, STAGE_NAMES,
+  actionName, ADVANCED_SLOTS, DKS_STAGES, KEY_OPTIONS, keyIndex, keymapProblem, MACRO_SLOTS, MEDIA_NAMES, MODIFIERS,
+  modifierCount, MOUSE_NAMES, sameAction, STAGE_NAMES,
 } from "./keymap";
+import { MacroFields } from "./Macro";
 import { Icon, mm, Panel, Slider } from "./ui";
 
 /** 1,5 / 3,6 / 3,6 / 1,5 mm, the protocol crate's `DksPoints::DEFAULT`. */
@@ -26,6 +27,8 @@ export function Remap({ keys, onError, onDirtyChange }: {
   const problem = map ? keymapProblem(map, keys) : null;
   const advancedCount = map ? map.filter((value) => value.kind === "advanced").length : 0;
   const advancedFull = advancedCount >= ADVANCED_SLOTS && action?.kind !== "advanced";
+  const macroCount = map ? map.filter((value) => value.kind === "macro").length : 0;
+  const macroFull = macroCount >= MACRO_SLOTS && action?.kind !== "macro";
   const dirty = !!(map && saved && map.some((action, index) => !sameAction(action, saved[index])));
   const remapped = new Set(keys.filter((key) => map && factory
     && !sameAction(map[keyIndex(key.pos)], factory[keyIndex(key.pos)])).map((key) => posId(key.pos)));
@@ -131,6 +134,8 @@ export function Remap({ keys, onError, onDirtyChange }: {
       case "media": update({ kind, key: "VolumeUp" }); break;
       case "mouse": update({ kind, action: "Left" }); break;
       case "disabled": update({ kind }); break;
+      case "macro": update({ kind, playback: { type: "once" }, steps: [
+        { usage: own.usage, down: true, delay_ms: 10 }, { usage: own.usage, down: false, delay_ms: 10 }] }); break;
       case "mod_tap": update({ kind: "advanced", key: { type: kind, tap: own, hold: { kind: "key", usage: 0xe0 }, hold_ms: 200 } }); break;
       case "toggle": update({ kind: "advanced", key: { type: kind, key: own } }); break;
       case "dks": update({ kind: "advanced", key: { type: kind, points: DKS_DEFAULT,
@@ -172,6 +177,7 @@ export function Remap({ keys, onError, onDirtyChange }: {
                 <option value="shortcut">Atalho</option>
                 <option value="media">Multimídia</option>
                 <option value="mouse">Mouse · beta</option>
+                <option value="macro" disabled={macroFull}>Macro</option>
                 <option value="disabled">Desativar</option>
                 <optgroup label="Avançada">
                   <option value="mod_tap" disabled={advancedFull}>Mod-Tap</option>
@@ -182,6 +188,8 @@ export function Remap({ keys, onError, onDirtyChange }: {
             </label>
             {(action.kind === "advanced" || advancedFull) && <p className="muted">
               Teclas avançadas no mapa: {advancedCount} de {ADVANCED_SLOTS}.</p>}
+            {(action.kind === "macro" || macroFull) && <p className="muted">Macros no mapa: {macroCount} de {MACRO_SLOTS}.</p>}
+            {action.kind === "macro" && <MacroFields key={posId(selected!.pos)} value={action} onChange={update} />}
             {(action.kind === "key" || action.kind === "shortcut") && <StrokeFields label="Tecla de destino" stroke={action} onChange={update} />}
             {action.kind === "key" && <div className="actions">
               <button type="button" className="ghost" onClick={() => {

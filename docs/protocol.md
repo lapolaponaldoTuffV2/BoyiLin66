@@ -137,6 +137,30 @@ and a write that fails part-way leaves the earlier packets applied.
 | `07 code 00 00` | Media key (codes in `keymap.rs`; Mute `12` confirmed) |
 | `12 00 buttons 00` · `12 01 step 00` | Mouse button mask / wheel step, **unconfirmed** |
 | `17 slot 00 00` | Advanced key stored in slot `slot` (see `0x22`) |
+| `10 00 slot 00` | Macro stored in slot `slot` (see `0x19`) |
+
+### `0x19` Macros
+
+10 slots of 256 bytes. Byte 2 = slot, byte 4 = packet 0–4; packets 0–3 carry
+58 bytes (length `0x3A`), packet 4 the last 24 (length `0x18`). Each packet is
+acknowledged like a keymap packet. Write the slots before the keymap that
+refers to them; an all-zero slot is empty, and emptying a slot stops it if it
+is playing.
+
+The 256 bytes are an 8-byte header followed by up to 62 four-byte steps, zero
+padded:
+
+| Header byte | Meaning |
+|---|---|
+| 1 | Playback: `0` once per press (also when held), `1` repeat `count` times, `2` a press starts repeating and the next press stops, `3` repeat while held |
+| 3 | Length of the steps in bytes (steps × 4) |
+| 5 | `count` for playback `1` |
+
+Others are zero. A step is `usage flags delay_hi delay_lo`: a HID keyboard
+usage, flags `10` for a press or `00` for a release, then the pause after the
+step in milliseconds, big-endian. When a macro repeats, the pause after the
+last step separates the repetitions. Flag bit 0 marks a mouse-button step
+(usage `1` left, `2` right, `4` middle), **unconfirmed** and not used by the crate.
 
 ### `0x22` Advanced keys
 
@@ -172,6 +196,5 @@ Payload starts with a sub-command: `01` factory reset, `02` Windows-key lock,
 
 ## Not covered yet
 
-Macros, calibration, Win-lock and
-sleep timer, side light writes, the Fn layer. Firmware updates are
+Calibration, Win-lock and sleep timer, side light writes, the Fn layer. Firmware updates are
 deliberately out of scope.

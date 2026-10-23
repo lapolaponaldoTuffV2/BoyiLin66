@@ -44,6 +44,9 @@ export const MOUSE_NAMES: Record<MouseAction, string> = {
 
 /** Firmware slots for Mod-Tap, Toggle and DKS keys. */
 export const ADVANCED_SLOTS = 40;
+export const MACRO_SLOTS = 10;
+/** Steps that fit in one firmware macro. */
+export const MAX_MACRO_STEPS = 62;
 /** The four DKS stages, each triggered at its own depth. */
 export const DKS_STAGES: { point: keyof DksPoints; label: string }[] = [
   { point: "press", label: "Pressionar" }, { point: "bottom", label: "Fundo" },
@@ -65,6 +68,8 @@ export function actionName(action: KeyAction): string {
     case "media": return MEDIA_NAMES[action.key];
     case "mouse": return `${MOUSE_NAMES[action.action]} · beta`;
     case "advanced": return advancedName(action.key);
+    case "macro": return ["Macro", action.steps.filter((step) => step.down).map((step) => keyName(step.usage)).join(", ")]
+      .filter(Boolean).join(": ");
   }
 }
 
@@ -83,6 +88,12 @@ export function sameAction(a: KeyAction, b: KeyAction): boolean {
     case "media": return b.kind === "media" && a.key === b.key;
     case "mouse": return b.kind === "mouse" && a.action === b.action;
     case "advanced": return b.kind === "advanced" && sameAdvanced(a.key, b.key);
+    case "macro": return b.kind === "macro" && a.playback.type === b.playback.type
+      && (a.playback.type !== "repeat" || b.playback.type === "repeat" && a.playback.count === b.playback.count)
+      && a.steps.length === b.steps.length && a.steps.every((step, i) => {
+        const other = b.steps[i];
+        return step.usage === other.usage && step.down === other.down && step.delay_ms === other.delay_ms;
+      });
     default: return a.kind === b.kind;
   }
 }
@@ -112,6 +123,26 @@ function strokeProblem(stroke: any): string | null {
 }
 
 /** Mirrors the protocol crate's rules, so the draft is checked before anything is sent. */
+function macroProblem(action: any): string | null {
+  const playback = action.playback;
+  if (!["once", "repeat", "toggle", "while_held"].includes(playback?.type)
+    || playback.type === "repeat" && !(Number.isInteger(playback.count) && playback.count >= 1 && playback.count <= 255)) {
+    return "Uma macro repetida precisa de 1 a 255 repetições.";
+  }
+  if (!Array.isArray(action.steps) || action.steps.length < 1 || action.steps.length > MAX_MACRO_STEPS) {
+    return `Uma macro precisa de 1 a ${MAX_MACRO_STEPS} passos.`;
+  }
+  const held = new Set<number>();
+  for (const step of action.steps) {
+    if (!Number.isInteger(step?.usage) || step.usage < 1 || step.usage > 255 || typeof step.down !== "boolean"
+      || !Number.isInteger(step.delay_ms) || step.delay_ms < 0 || step.delay_ms > 65535) return "A macro contém um passo inválido.";
+    if (held.has(step.usage) === step.down) return "Na macro, cada tecla precisa ser pressionada e depois solta.";
+    if (step.down) held.add(step.usage); else held.delete(step.usage);
+  }
+  // A key still held at the end would stay pressed on the computer.
+  return held.size ? "A macro termina com uma tecla ainda pressionada." : null;
+}
+
 function advancedProblem(key: any): string | null {
   switch (key?.type) {
     case "mod_tap":
@@ -149,6 +180,7 @@ export function keymapProblem(value: unknown, keys: Key[]): string | null {
   if (!Array.isArray(value) || value.length !== 132) return "O mapa precisa conter 132 posições.";
   const fnSlots: number[] = [];
   let advanced = 0;
+  let macros = 0;
   for (const [index, action] of value.entries()) {
     if (!action || typeof action !== "object") return "O mapa contém uma ação inválida.";
     let problem: string | null = null;
@@ -157,12 +189,14 @@ export function keymapProblem(value: unknown, keys: Key[]): string | null {
       case "fn": fnSlots.push(index); break;
       case "key": case "shortcut": problem = strokeProblem(action); break;
       case "advanced": advanced++; problem = advancedProblem(action.key); break;
+      case "macro": macros++; problem = macroProblem(action); break;
       case "media": if (!Object.hasOwn(MEDIA_NAMES, action.key)) return "Ação multimídia inválida."; break;
       case "mouse": if (!Object.hasOwn(MOUSE_NAMES, action.action)) return "Ação de mouse inválida."; break;
       default: return "O mapa contém uma ação desconhecida.";
     }
     if (problem) return problem;
   }
+  if (macros > MACRO_SLOTS) return `O teclado guarda no máximo ${MACRO_SLOTS} macros.`;
   if (advanced > ADVANCED_SLOTS) return `O teclado guarda no máximo ${ADVANCED_SLOTS} teclas avançadas (Mod-Tap, Toggle e DKS).`;
   if (fnSlots.length !== 1 || !keys.some((key) => keyIndex(key.pos) === fnSlots[0])) {
     return "O mapa precisa manter exatamente uma tecla Fn física.";
